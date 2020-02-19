@@ -1,8 +1,7 @@
-std::regex should be deprecated starting in C++23
+Deprecate std::regex
 
 | Document # | D2124R0 |
 | Date | 2020-02-16 |
-| Project |	Programming Language C++ |
 | Targeted subgroups | SG16, EWG, CWG |
 | Ship vehicle | C++23 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
