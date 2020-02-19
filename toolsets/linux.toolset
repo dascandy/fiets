@@ -1,4 +1,5 @@
 
 template: __builtin_clang
-compiler: clang++-9 -std=c++2a -Wall -Wextra -Wpedantic -O0 -g
+compiler: clang++-9 -std=c++2a -Wall -Wextra -Wpedantic -O0 -g -stdlib=libc++
+linker: clang++-9 -std=c++2a -stdlib=libc++
 

@@ -1,6 +1,8 @@
 #include "parser.h"
 #include <string_view>
 
+int Reference::current_index = 1;
+
 std::vector<std::string_view> split(std::string_view data, std::string chars) {
   std::vector<std::string_view> lines;
   size_t start = 0;
@@ -14,13 +16,96 @@ std::vector<std::string_view> split(std::string_view data, std::string chars) {
   return lines;
 }
 
-std::string_view parseText(std::string_view line) {
-  return line;
+Text parseText(std::string_view line, Document& doc) {
+  Text text;
+  std::string accum;
+  size_t offset = 0;
+  while (offset != line.size()) {
+    size_t end = line.find_first_of("`+-\\['", offset);
+    if (end == std::string::npos) {
+      accum += line.substr(offset);
+      text.seq.push_back(accum);
+      offset = line.size();
+      break;
+    } else {
+      accum += line.substr(offset, end - offset);
+      offset = end;
+      switch(line[offset]) {
+      case '\\':
+        accum += line[offset+1];
+        offset += 2;
+        break;
+      case '+': 
+        if (line[offset+1] == '+' && line[offset+2] == '+') {
+          if (!accum.empty()) text.seq.push_back(accum);
+          accum = "";
+          size_t end = line.find("+++", offset + 3);
+          text.seq.push_back(Insertion{parseText(line.substr(offset + 3, end - offset - 3), doc)});
+          offset = end + 3;
+        } 
+        else 
+        {
+          accum += '+';
+          offset++;
+        }
+        break;
+      case '-':
+        if (line[offset+1] == '-' && line[offset+2] == '-') {
+          if (!accum.empty()) text.seq.push_back(accum);
+          accum = "";
+          size_t end = line.find("---", offset + 3);
+          text.seq.push_back(Deletion{parseText(line.substr(offset + 3, end - offset - 3), doc)});
+          offset = end + 3;
+        } 
+        else 
+        {
+          accum += '-';
+          offset++;
+        }
+        break;
+      case '\'':
+      {
+        if (!accum.empty()) text.seq.push_back(accum);
+        accum = "";
+        size_t end = line.find("'", offset + 1);
+        text.seq.push_back(Identifier{line.substr(offset + 1, end - offset - 1)});
+        offset = end + 1;
+      }
+        break;
+      case '[':
+      {
+        if (!accum.empty()) text.seq.push_back(accum);
+        accum = "";
+        size_t end = line.find("]", offset + 1);
+        if (line[end+1] == '(') {
+          size_t end2 = line.find(")", end + 2);
+          text.seq.push_back(Reference{line.substr(offset + 1, end - offset - 1), line.substr(end + 2, end2 - end - 2)});
+          offset = end2 + 1;
+        } else {
+          text.seq.push_back(Reference{line.substr(offset + 1, end - offset - 1), ""});
+          offset = end + 1;
+        }
+        doc.references.push_back(&std::get<Reference>(text.seq.back()));
+      }
+        break;
+      case '`':
+      {
+        if (!accum.empty()) text.seq.push_back(accum);
+        accum = "";
+        size_t end = line.find("`", offset + 1);
+        text.seq.push_back(CodeSpan{line.substr(offset + 1, end - offset - 1)});
+        offset = end + 1;
+      }
+        break;
+      }
+    }
+  }
+  return text;
 }
 
-Chapter parse(std::string_view file) {
+Document parse(std::string_view file) {
   size_t lineNumber = 0;
-  Chapter doc(0, "");
+  Document doc;
   Chapter* currentChapter = &doc;
   std::string accumulated = "";
   std::string codeLanguage = "";
@@ -53,25 +138,33 @@ Chapter parse(std::string_view file) {
         state = Codeblock;
         codeLanguage = line.substr(3);
         accumulated = "";
+      } else if (line.starts_with("[[references]]")) {
+        currentChapter->entries.push_back(References());
+      } else if (line.starts_with("[[TOC]]")) {
+        currentChapter->entries.push_back(TOC());
       } else if (line.starts_with("- ")) {
         if (currentChapter->entries.empty() ||
           !std::holds_alternative<List>(currentChapter->entries.back()))
           currentChapter->entries.push_back(List{});
 
-        std::get<List>(currentChapter->entries.back()).entries.push_back(line.substr(2));
+        std::get<List>(currentChapter->entries.back()).entries.push_back(parseText(line.substr(2), doc));
       } else if (line.starts_with("'") && line.find("':") != std::string::npos) {
         size_t closePos = line.find("':");
-        currentChapter->entries.push_back(IdentifierDefinition{line.substr(1, closePos), line.substr(closePos+2)});
+        currentChapter->entries.push_back(IdentifierDefinition{line.substr(1, closePos), parseText(line.substr(closePos+2), doc)});
       } else if (line.starts_with("|")) {
         if (currentChapter->entries.empty() ||
           !std::holds_alternative<Table>(currentChapter->entries.back()))
           currentChapter->entries.push_back(Table{});
 
-        std::get<Table>(currentChapter->entries.back()).entries.push_back(split(line.substr(1, line.size() - 2), "|"));
+        std::get<Table>(currentChapter->entries.back()).entries.push_back({});
+        auto& lineEntries = std::get<Table>(currentChapter->entries.back()).entries.back();
+        for (auto entry : split(line.substr(1, line.size() - 2), "|")) {
+          lineEntries.push_back(parseText(entry, doc));
+        }
       } else if ( false /* is an ordered list entry */) {
         // TODO
       } else {
-        currentChapter->entries.push_back(Text{line});
+        currentChapter->entries.push_back(parseText(line, doc));
       }
       break;
     case Codeblock:

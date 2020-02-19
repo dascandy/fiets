@@ -1,0 +1,82 @@
+std::regex should be deprecated starting in C++23
+
+| Document # | D2124R0 |
+| Date | 2020-02-16 |
+| Project |	Programming Language C++ |
+| Targeted subgroups | SG16, EWG, CWG |
+| Ship vehicle | C++23 |
+| Reply-to | Peter Bindels <dascandy@gmail.com> |
+| | Peter Brett <pbrett@cadence.com> |
+| | Hana Dusíková <hanicka@hanicka.net> |
+| | Tom Honermann <tom@honermann.net> |
+
+# Abstract
+
+`std::regex` is a type that was introduced in C++11. It has performance in all implementations that is very suboptimal compared to contemporary regex engines. The implementation requires mishandling Unicode in fundamental ways. It gives the user the choice of 6 different regular expression dialects, making code maintenance very hard and attempts at improving the set of supported features much harder. Any attempt to fix this is being met with strong resistance on basis of ABI breakage. Papers to accomplish this still take up committee time in processing. There are new proposals for regular expression engines in C++23 and up that handle all these issues, and are more widely applicable than `std::regex` currently is and can be. As a whole `std::regex` is a type that, as a C++ programmer, you are much better off avoiding altogether. Its performance is bad and its behavior is wrong. We believe that we are better off informing users and potential paper authors about this information up-front.
+
+# Goal of this paper
+
+The goal of this paper is to deprecate `std::regex` in C++23. We believe this is the correct cause of action because of the following:
+
+- `std::regex` is unable to match Unicode in either 8-bit or 16-bit character sets. All character sets in common use as interchange formats are 8-bit or 16-bit.
+- `std::regex` by default uses the global locale object, which is known to cause many serialization and deserialization problems in many countries (excluding those that happen to match with what the US or C locales do). 
+- The performance of implementations in all common compilers are far from optimal, and in some cases multiple orders of magnitude slower than other contemporary implementations.
+- Current implementations are unable to modify the implementation other than making a full ABI break.
+
+We are proposing to not remove `std::regex` in the C++23 timeframe.
+
+- `std::regex` is not unusable in restricted domains.
+- Its performance is acceptable to some programs.
+- Customers that have shipped software with these implementations, accepting these restrictions and dangers, should not be unduly laden with the task of modifying their program before we have a proper replacement.
+
+In analogy, `std::regex` is in a similar position to std::auto_ptr in the 2007-2008 timeframe. If we had had a release planned for 2008, a similar paper would have argued for deprecating it in (a hypothetical) C++08, while only providing a replacement in C++11. The meaning of this proposed deprecation is:
+
+- This type has problems.
+- You are better off not using this, or using something in a non-standard library
+- Papers submitted to fix this type in-place are not able to get through the standard committee, and we are hoping to spend time on the replacement rather than re-investigating a possible tweak to the existing type.
+
+# Problems with `std::regex` in more detail
+
+## Unicode matching
+
+`std::regex` treats the expression to be matched as a code-unit oriented expression. It does not take into account code points made up from more than a single code unit, normalization of any form, nor any of the extensions many regular expression libraries offer with regards to matching Unicode properties.
+
+### Matching code units
+
+When a letter is from the non-ASCII part of Unicode in UTF8, from the non-BMP part of Unicode in UTF16, or from a multibyte encoded character in any other encoding, it will match each code unit making up the sequence for at code point individually. This makes an alphabet match match entirely the wrong things. As an example, trying to find "\[&aacute;\]" (code point 0xE1, code unit sequence "0xC3 0xA1") in the string "¡&aring;" (0xC2 0xA1 0xC3 0xA5) will return two matches - one for the second code unit in the first character, and one for the first code unit of the second character. It will also happily match "&#x2221;" (0xE2 0x88 0xA1, mathematical symbol for measured corner) and "&#x2F61;" (0xE2 0xBD 0xA1, Kangxi Radical Tile) once, and "&#x6861;" (0xE6 0xA1 0xA1, Chinese character for "bent or twisted piece of wood") twice, despite having no connection with them whatsoever. It is possible to work around this issue by defining `using u32regex = basic_regex<char32_t>` and doing all operations in UTF32, at a large cost to both convenience, memory and performance.
+
+### Normalization
+
+The pattern "&aacute;" (0xC3 0xA1) will not match the string "a&#x301;" (0x61 0xCC 0x81), nor will the pattern "a&#x301;" (0x61 0xCC 0x81) find any results in the string "&aacute;" (0xC3 0xA1). Both strings contain a single grapheme, even from a strict Unicode point of view. In well-behaved Unicode software, these should be treated as equals but `std::regex` contains no provisions for that. This can be worked around by using normalization before passing strings and patterns to `std::regex`. This is an extra step and easily forgotten, leading to bugs not easily found by testers, yet likely triggered in common use. 
+
+### Unicode properties
+
+As `std::regex` treats each code unit as a separate thing to be looked at, it is not possible to define a char_traits that returns correct information for any unicode character consisting of more than a single code unit. This also means that the regex portions that match a named group of characters, like "\\s" (whitespace), will not match any whitespace character outside of ASCII. A string like "123&nbsp;456" will not match a pattern "\[0-9\]*\\s\[0-9\]*". It is possible to work around this issue by defining `using u32regex = basic_regex<char32_t>` and doing all operations in UTF32, at a large cost to both convenience, memory and performance.
+
+## Performance
+
+Need input! Help me Hana! Help me Hana! Number 5 is alive!
+
+## ABI issues with fixes
+
+Can we get input from Billy O\'Neal for this bit?
+
+String fragment follow - have a large enough problem with changing the implementation even a minute bit that they are very likely to either veto any change, or keep it as a defect in their implementation until the next ABI break on that platform (which in experience amounts to order-of-size a decade).
+
+## Locale issues
+
+`std::regex` by default uses the system locale for matching. `std::basic_regex` and `std::regex_traits` can both be imbued with a `std::locale` object (the former dispatches to the latter).  The locale object affects collation behavior, at least when `std::regex::collate` is enabled. When not imbued, the global locale object will be consulted for locale sensitive operations. This leads to very interesting locale-specific behavior, which is commonly not tested well on delivered software or marked up in release notes.[https://stackoverflow.com/questions/48222974/is-stdregex-always-locale-aware](StackOverflow question on std::regex locale awareness).
+
+Additionally, as the locale is consulted based on code units, for any encoding that uses multi-code-unit sequences it will be impossible to make a regex_traits that treats characters correctly.
+
+# Proposed current resolution
+
+## Consideration for current users
+
+## How a replacement avoids these issues
+
+
+# References:
+
+[[references]]
+

@@ -1,15 +1,70 @@
 #include "html.h"
+#include <type_traits>
 
 extern std::string html_header1, html_header2, html_footer;
 
+static const Document* doc = nullptr;
+
+std::string as_html(const Text& l);
+std::string as_html(const Insertion& i) {
+  return "<span class=\"new\">" + as_html(i.text) + "</span>";
+}
+
+std::string as_html(const Deletion& i) {
+  return "<span class=\"delete\">" + as_html(i.text) + "</span>";
+}
+
+std::string as_html(const Reference& i) {
+  return "<a href=\"" + std::string(i.text) + "\">[" + std::to_string(i.index) + "]</a>";
+}
+
+std::string as_html(const Identifier& i) {
+  return "<span class=\"identifier\">" + std::string(i.text) + "</span>";
+}
+
+std::string as_html(const CodeSpan& i) {
+  return "<span class=\"code\">" + std::string(i.text) + "</span>";
+}
+
+std::string as_html(const std::string& s) {
+  std::string copy = s;
+  size_t offs = copy.find_first_of("<>");
+  while (offs != std::string::npos) {
+    copy = copy.substr(0, offs) + (copy[offs] == '<' ? "&lt;" : "&gt;") + copy.substr(offs+1);
+    offs = copy.find_first_of("<>");
+  }
+  return copy;
+}
+
+std::string as_html(const References&) {
+  std::string accum = "<ol>";
+  for (auto ref : doc->references) {
+    accum += "<li><a href=\"" + std::string(ref->text) + "\">" + std::string(ref->name) + " (" + std::string(ref->text) + ")</a></li>";
+  }
+  accum += "</ol>";
+  return accum;
+}
+
+std::string as_html(const TOC& i) {
+  return "TODO";
+}
+
+std::string as_html(const Text& l) {
+  std::string accum;
+  for (auto& e : l.seq) {
+    accum += std::visit([](const auto& ee) { return as_html(ee); }, e);
+  }
+  return accum;
+}
+
 std::string as_html(const Code& c) {
-  return "<pre><code>" + std::string(c.body) + "</code></pre>";
+  return "<code><span class=\"code\">" + std::string(c.body) + "</span></code>";
 }
 
 std::string as_html(const List& l) {
   std::string accum = "<ul>";
   for (auto& item : l.entries) {
-    accum += "<li>" + std::string(item) + "</li>";
+    accum += "<li>" + as_html(item) + "</li>";
   }
   return accum + "</ul>";
 }
@@ -17,7 +72,7 @@ std::string as_html(const List& l) {
 std::string as_html(const OrderedList& l) {
   std::string accum = "<ol>";
   for (auto& item : l.entries) {
-    accum += "<li>" + std::string(item) + "</li>";
+    accum += "<li>" + as_html(item) + "</li>";
   }
   return accum + "</ol>";
 }
@@ -31,14 +86,16 @@ std::string as_html(const Table& l) {
   if (l.entries.size() < 3) has_header = false;
   else {
     for (auto& v : l.entries[1]) 
-      if (v != "-") has_header = false;
+      if (v.seq.size() != 1) has_header = false;
+      else if (!std::holds_alternative<std::string>(v.seq[0])) has_header = false;
+      else if (std::get<std::string>(v.seq[0]) != "-") has_header = false;
   }
   std::string accum = "<table>";
   size_t n = 0;
   if (has_header) {
      accum += "<thead><tr>";
     for (auto& e : l.entries[n]) {
-      accum += "<th>" + std::string(e) + "</th>";
+      accum += "<th>" + as_html(e) + "</th>";
     }
     accum += "</tr></thead>";
     n = 2;
@@ -47,16 +104,12 @@ std::string as_html(const Table& l) {
   for (;n < l.entries.size(); n++) {
     accum += "<tr>";
     for (auto& e : l.entries[n]) {
-      accum += "<td>" + std::string(e) + "</td>";
+      accum += "<td>" + as_html(e) + "</td>";
     }
     accum += "</tr>";
   } 
   accum += "</tbody></table>";
   return accum;
-}
-
-std::string as_html(const Text& l) {
-  return "<p>" + std::string(l.text) + "</p>";
 }
 
 std::string as_id(std::string_view name) {
@@ -70,21 +123,28 @@ std::string as_id(std::string_view name) {
   return id;
 }
 
-std::string as_html_chapter(std::string name, const Chapter& ch) {
+std::string as_html(std::string name, const Chapter& ch) {
   std::string accum;
   accum += "<h" + std::to_string(ch.level) + " data-number=\"" + std::string(name) + "\" id=\"" + as_id(ch.text) + "\"><span class=\"header-section-number\">" + name + "</span> " + std::string(ch.text) + "<a href=\"#" + as_id(ch.text) + "\" class=\"self-link\"></a></h" + std::to_string(ch.level) + ">";
   for (auto& el : ch.entries) {
-    accum += std::visit([](auto e){ return as_html(e); }, el);
+    accum += std::visit([](auto e){ 
+      if constexpr (std::is_same_v<std::remove_cvref_t<decltype(e)>, Text>) {
+        return "<p>" + as_html(e) + "</p>";
+      } else { 
+        return as_html(e); 
+      }
+    }, el);
   }
 
   for (size_t n = 0; n < ch.subchapters.size(); n++) {
-    accum += as_html_chapter(name + "." + std::to_string(n+1), ch.subchapters[n]);
+    accum += as_html(name + "." + std::to_string(n+1), ch.subchapters[n]);
   }
 
   return accum;
 }
 
-std::string as_html(const Chapter& ch) {
+std::string as_html(const Document& ch) {
+  doc = &ch;
   std::string accumulator = html_header1;
   accumulator.reserve(400000);
   accumulator += ch.text;
@@ -97,11 +157,12 @@ std::string as_html(const Chapter& ch) {
 
   size_t n = 1;
   for (auto& subch : ch.subchapters) {
-    accumulator += as_html_chapter(std::to_string(n), subch);
+    accumulator += as_html(std::to_string(n), subch);
     n++;
   }
 
   accumulator += html_footer;
+  doc = nullptr;
   return accumulator;
 }
 
@@ -152,6 +213,11 @@ std::string html_header1 =
   "span.new {\n"
   "  text-decoration: underline;\n"
   "  background-color: #006e28;\n"
+  "}\n"
+  "span.code {\n"
+  "  font-family: Courier New, monospace;\n"
+  "  background-color: #e8e8e8;\n"
+  "  white-space: pre;\n"
   "}\n"
   "span.delete {\n"
   "  text-decoration: line-through;\n"

@@ -2,5 +2,5 @@
 
 #include "parser.h"
 
-std::string as_html(const Chapter& ch);
+std::string as_html(const Document& ch);
 

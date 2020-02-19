@@ -4,28 +4,43 @@
 #include <vector>
 #include <string>
 
+struct Insertion;
+struct Deletion;
+struct Reference;
+struct Identifier;
+struct CodeSpan;
+struct Text {
+  std::vector<std::variant<std::string, Insertion, Deletion, Reference, Identifier, CodeSpan>> seq; 
+};
+
+struct Insertion { Text text; };
+struct Deletion { Text text; };
+struct Reference { std::string_view text; std::string_view name; int index = current_index++; static int current_index; };
+struct Identifier { std::string_view text; };
+struct CodeSpan { std::string_view text; };
+
 struct Code {
   std::string_view language = "c++";
-  std::string_view body;
+  std::string body;
 };
 struct List {
-  std::vector<std::string_view> entries; 
+  std::vector<Text> entries; 
 };
 struct OrderedList {
-  std::vector<std::string_view> entries; 
+  std::vector<Text> entries; 
 };
 struct IdentifierDefinition {
   std::string_view identifier; 
-  std::string_view definition;
+  Text definition;
 };
 struct Table {
-  std::vector<std::vector<std::string_view>> entries;
-};
-struct Text {
-  std::string_view text;
+  std::vector<std::vector<Text>> entries;
 };
 
-using DocumentEntry = std::variant<Code, List, OrderedList, IdentifierDefinition, Table, Text>;
+struct References {};
+struct TOC {};
+
+using DocumentEntry = std::variant<Code, List, OrderedList, IdentifierDefinition, Table, Text, References, TOC>;
 
 struct Chapter {
   int level;
@@ -34,8 +49,13 @@ struct Chapter {
   std::vector<Chapter> subchapters;
   Chapter(int level, std::string_view text) 
   : level(level)
-  , text(text)
+  , text({{text}})
   {}
 };
 
-Chapter parse(std::string_view file);
+struct Document : Chapter {
+  Document() : Chapter{0, ""} {}
+  std::vector<Reference*> references;
+};
+
+Document parse(std::string_view file);
