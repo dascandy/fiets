@@ -1,0 +1,63 @@
+A uniform and predefined mapping from module names to file names
+
+| Document number | P1484R2 |
+| Date | 2020-02-20 |
+| Reply-to | Peter Bindels <dascandy@gmail.com> |
+| Targeted subgroups | SG16, EWG, CWG |
+| Ship vehicle | C++23 |
+
+[[TOC]]
+
+# Introduction
+
+In compiling software users currently work with include paths and complicated build system driven include path orders to find the relevant headers for compiling their software. In a post-modules world, there would need to be an equivalent lookup from module name to module source or binary module include file done. This paper explores a direction already taken by many existing modules implementations; having a deterministic mapping from module name to source name and location.
+
+# Motivation and Scope
+
+In the current paper on modules [http://wg21.link/p1103](P1103) the question on how to map from a given module import to the appropriate module export statement is not specified. Multiple suggestions have been made to fix this problem in a roundabout way ([http://wg21.link/p1184](P1184), [http://wg21.link/p1302](P1302)) but these solutions do not tackle the full holistic problem of mapping an import to a pre-compiled BMI file resulting in a feasible build tree that a tool can realistically retrieve from the input files [http://wg21.link/p1427](P1427). In this paper we take a step beyond the proposal suggested in [http://wg21.link/p1302](P1302) - having a fixed method for finding the module imports referenced. This answers the question how to resolve a given import to a relevant binary module import. The solution proposed is far from a new idea - GCC and Clang already implement a form of it. As the C++ standard itself does not define how compilers are implemented; this paper targets the SG15 TR slated to be created for this purpose. That is actually the desired outcome - to have a standard described way of doing something, while leaving the implementers free to do something when it is not applicable or when something else with clear benefits seems to exist. As of yet, similar to Clang -fimplicit_module_maps [https://clang.llvm.org/docs/Modules.html#module-maps] and GCC’s default lookup start (“The GCC modules implementation began with a fixed mapping of module name to BMI filename, and a search path to look for them.” [http://wg21.link/p1184](P1184)).
+
+# Impact On the Standard
+
+As the change is around how compilers perform a lookup it would be a non-normative addition to the proposed modules implementation [http://wg21.link/p1103](P1103). The intended wording would be similar to P1302 but specifying the module lookup that P1302 explicitly does not propose.
+
+# Design Decisions
+
+Q: How does this mapping compare to the one introduced by P1302? 
+
+A: The mapping is intentionally specified as one that matches the results from P1302, while explicitly choosing the alternative it spells out as “We do not do this” in its Design section. The design is 100% compatible with P1302 and includes it wholly. 
+
+Q: Is the mapping a forced requirement? What if the system in question is unable to use it?
+
+A: In order for the mapping to be a useful standard, its use is strongly recommended if the system is able to support it. Three mappings are given as examples and if any of these is implementable, using them has preference over a platform specific choice. If none of the three are supportable, the suggestion is to make a platform-specific documented fixed transformation from module to originating file, publicly shared to avoid conflicting standards on platforms and to encourage tool developers to support these transformations on the given platforms.
+
+Q: What if a collision occurs between a module and its partition, versus a different moduleand (potentially) its partition? The paper proposes this to be malformed code. For example, having a io partition in std, and a std.io module would be considered ill-formed, no diagnostic required (but very welcome regardless).
+
+# Wording
+
+Given a module import for “std.io”, the tool or compiler will know this comes from one of the following three specific files:
+
+- “std/io/module.cxx”
+- “std/io.cxx”
+- “std.io.cxx”
+
+in that order. When none of these are found, the compiler will not resolve the module. Module partitions are mapped equivalently, treating the partition separator as equivalent to the dot. An example for “std.io:stream”:
+
+- “std/io/stream/module.cxx”
+- “std/io/stream.cxx”
+- “std.io.stream.cxx”
+
+As a more formal specification:
+
+- The name is transformed by replacing all dots with ‘/’, and appending ‘/module.cxx’
+- The name is transformed by replacing all dots with ‘/’ and appending ‘.cxx’
+- The name is transformed by appending ‘.cxx’.
+
+# Acknowledgements
+
+Thank you to Nathan Sidwell for his help with implementing modules, Gabriel Dos Reis for the original Modules TS and all other contributors to the existing Visual Studio, Clang and GCC implementations. An additional thank you is extended to the people working on build system and related tools, for inspiring this paper. A final thank you goes to Bryce Adelstein Lelbach for providing the impetus to actually write the paper.
+
+## References
+
+[[references]]
+
+

@@ -1,6 +1,7 @@
 Deprecate std::regex
+%s/\[a-z_\]*regex\[a-z_\]*/\[\[deprecated\]\] &/g
 
-| Document # | D2124R0 |
+| Document # | P2124R1 |
 | Date | 2020-02-16 |
 | Targeted subgroups | SG16, EWG, CWG |
 | Ship vehicle | C++23 |
@@ -62,6 +63,8 @@ Can we get input from Billy O\'Neal for this bit?
 
 String fragment follow - have a large enough problem with changing the implementation even a minute bit that they are very likely to either veto any change, or keep it as a defect in their implementation until the next ABI break on that platform (which in experience amounts to order-of-size a decade).
 
+
+
 ## Locale issues
 
 `std::regex` by default uses the system locale for matching. `std::basic_regex` and `std::regex_traits` can both be imbued with a `std::locale` object (the former dispatches to the latter).  The locale object affects collation behavior, at least when `std::regex::collate` is enabled. When not imbued, the global locale object will be consulted for locale sensitive operations. This leads to very interesting locale-specific behavior, which is commonly not tested well on delivered software or marked up in release notes.[https://stackoverflow.com/questions/48222974/is-stdregex-always-locale-aware](StackOverflow question on std::regex locale awareness).
@@ -74,6 +77,15 @@ Additionally, as the locale is consulted based on code units, for any encoding t
 
 ## How a replacement avoids these issues
 
+## Alternatives considered
+
+If we could do an ABI break, we could fix `std::regex`\'s poor performance {{citation needed}} and add some UTF-8 support [http://wg21.link/p1844](P1844).
+
+However, since WG21 decided not to break ABI {{citation needed}} and as a partial ABI break for `std::regex` would be more painful than a deprecation (such things were tried for C++11\'s `std::string`), we think deprecation is the only sensible path forward.
+
+It would be worth fixing the shortcomings listed in this paper only if WG21 were willing to take an ABI break (as advocated by [http://wg21.link/p2028](P2028)) and if implementors took advantage of that ABI break to improve `std::regex` performance.
+
+Deprecating `std::regex` and switching to a new regex type will be very expensive for programmers, and we would not recommend it if we had any other option.
 
 # References:
 

@@ -1,7 +1,13 @@
 #include "parser.h"
 #include <string_view>
 
-int Reference::current_index = 1;
+uint32_t Document::addReference(std::string url, std::string name) {
+  for (size_t n = 0; n < references.size(); n++) {
+    if (references[n].url == url) return references[n].index;
+  }
+  references.push_back(Referenced{(uint32_t)references.size() + 1, url, name});
+  return references.back().index;
+}
 
 std::vector<std::string_view> split(std::string_view data, std::string chars) {
   std::vector<std::string_view> lines;
@@ -79,13 +85,14 @@ Text parseText(std::string_view line, Document& doc) {
         size_t end = line.find("]", offset + 1);
         if (line[end+1] == '(') {
           size_t end2 = line.find(")", end + 2);
-          text.seq.push_back(Reference{line.substr(offset + 1, end - offset - 1), line.substr(end + 2, end2 - end - 2)});
+          uint32_t index = doc.addReference(std::string(line.substr(offset + 1, end - offset - 1)), std::string(line.substr(end + 2, end2 - end - 2)));
+          text.seq.push_back(Reference{index});
           offset = end2 + 1;
         } else {
-          text.seq.push_back(Reference{line.substr(offset + 1, end - offset - 1), ""});
+          uint32_t index = doc.addReference(std::string(line.substr(offset + 1, end - offset - 1)), "");
+          text.seq.push_back(Reference{index});
           offset = end + 1;
         }
-        doc.references.push_back(&std::get<Reference>(text.seq.back()));
       }
         break;
       case '`':
@@ -161,6 +168,8 @@ Document parse(std::string_view file) {
         for (auto entry : split(line.substr(1, line.size() - 2), "|")) {
           lineEntries.push_back(parseText(entry, doc));
         }
+      } else if (line.size() >= 10 && line.find_first_not_of("-") == std::string::npos) {
+
       } else if ( false /* is an ordered list entry */) {
         // TODO
       } else {

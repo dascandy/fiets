@@ -13,9 +13,15 @@ struct Text {
   std::vector<std::variant<std::string, Insertion, Deletion, Reference, Identifier, CodeSpan>> seq; 
 };
 
+struct Referenced {
+  uint32_t index;
+  std::string url; 
+  std::string name;
+};
+
 struct Insertion { Text text; };
 struct Deletion { Text text; };
-struct Reference { std::string_view text; std::string_view name; int index = current_index++; static int current_index; };
+struct Reference { uint32_t index; };
 struct Identifier { std::string_view text; };
 struct CodeSpan { std::string_view text; };
 
@@ -55,7 +61,8 @@ struct Chapter {
 
 struct Document : Chapter {
   Document() : Chapter{0, ""} {}
-  std::vector<Reference*> references;
+  std::vector<Referenced> references;
+  uint32_t addReference(std::string url, std::string name);
 };
 
 Document parse(std::string_view file);

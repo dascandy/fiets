@@ -15,7 +15,7 @@ std::string as_html(const Deletion& i) {
 }
 
 std::string as_html(const Reference& i) {
-  return "<a href=\"" + std::string(i.text) + "\">[" + std::to_string(i.index) + "]</a>";
+  return "<a title=\"" + doc->references[i.index-1].name + "\" href=\"#ref-" + std::to_string(i.index) + "\">[" + std::to_string(i.index) + "]</a>";
 }
 
 std::string as_html(const Identifier& i) {
@@ -23,7 +23,13 @@ std::string as_html(const Identifier& i) {
 }
 
 std::string as_html(const CodeSpan& i) {
-  return "<span class=\"code\">" + std::string(i.text) + "</span>";
+  std::string copy(i.text);
+  size_t offs = copy.find_first_of("<>");
+  while (offs != std::string::npos) {
+    copy = copy.substr(0, offs) + (copy[offs] == '<' ? "&lt;" : "&gt;") + copy.substr(offs+1);
+    offs = copy.find_first_of("<>");
+  }
+  return "<span class=\"code\">" + copy + "</span>";
 }
 
 std::string as_html(const std::string& s) {
@@ -39,7 +45,7 @@ std::string as_html(const std::string& s) {
 std::string as_html(const References&) {
   std::string accum = "<ol>";
   for (auto ref : doc->references) {
-    accum += "<li><a href=\"" + std::string(ref->text) + "\">" + std::string(ref->name) + " (" + std::string(ref->text) + ")</a></li>";
+    accum += "<li id=\"#ref-" + std::to_string(ref.index) + "\"><a href=\"" + ref.url + "\">" + ref.name + " (" + ref.url + ")</a></li>";
   }
   accum += "</ol>";
   return accum;
