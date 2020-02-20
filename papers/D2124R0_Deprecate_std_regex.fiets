@@ -79,7 +79,7 @@ Additionally, as the locale is consulted based on code units, for any encoding t
 
 ## Alternatives considered
 
-If we could do an ABI break, we could fix `std::regex`\'s poor performance {{citation needed}} and add some UTF-8 support [http://wg21.link/p1844](P1844).
+If we could do an ABI break, we could fix `std::regex`\'s poor performance ([https://compile-time.re/cpprussia-piter/slides/#/13/2/8](Slide 3/0/3 from CTRE presentation) and [https://compile-time.re/cpprussia-piter/slides/#/13/2/8](Slide 13/2/8 from CTRE presentation)) and add some UTF-8 support [http://wg21.link/p1844](P1844).
 
 However, since WG21 decided not to break ABI {{citation needed}} and as a partial ABI break for `std::regex` would be more painful than a deprecation (such things were tried for C++11\'s `std::string`), we think deprecation is the only sensible path forward.
 
