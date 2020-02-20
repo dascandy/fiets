@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="dascandy/fiets">
+<title>
+Deprecate std::regex</title>
+  <style type="text/css">
+body {
+  margin: 5em;
+  font-family: sans-serif;
+  hyphens: auto;
+  line-height: 1.35;
+}
+ul {
+  padding-left: 2em;
+}
+h1, h2, h3, h4 {
+  position: relative;
+  line-height: 1;
+}
+h1.title {
+}
+h2.subtitle {
+}
+h1.toc a, h2.toc a, h3.toc a, h4.toc a {
+  text-decoration: none;
+  color: #000000;
+}
+h1.toc a:hover, h2.toc a:hover, h3.toc a:hover, h4.toc a:hover {
+  text-decoration: underline;
+}
+a.self-link {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * (3.5rem - 26px));
+  width: calc(3.5rem - 26px);
+  height: 2em;
+  text-align: center;
+  border: none;
+  transition: opacity .2s;
+  opacity: .5;
+  font-family: sans-serif;
+  font-weight: normal;
+  font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+span.identifier {
+  font-style: italic;
+}
+span.new {
+  text-decoration: underline;
+  background-color: #006e28;
+}
+span.code {
+  font-family: Courier New, monospace;
+  background-color: #e8e8e8;
+  white-space: pre;
+}
+span.delete {
+  text-decoration: line-through;
+  background-color: #bf0303;
+}
+p.indent {
+  margin-left: 50px;
+}
+p.quote {
+  margin-left: 50px;
+  border: 2px solid black;
+  background-color: #f0f0e0;
+}
+table {
+  border: 1px solid black;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0.8em;
+  text-align: left;
+  hyphens: none; 
+}
+td, th {
+  padding-left: 1em;
+  padding-right: 1em;
+  vertical-align: top;
+}
+th {
+  border-bottom: 2px solid black;
+  background-color: #f0f0f0;
+}
+</style>
+</head>
+<body>
+<h1 class="title" style="text-align:center">Deprecate std::regex</h1><h2 class="subtitle" style="text-align:center">%s/[a-z_]*regex[a-z_]*/[[deprecated]] &/g</h2><table><tbody><tr><td> Document # </td><td> P2124R1 </td></tr><tr><td> Date </td><td> 2020-02-16 </td></tr><tr><td> Targeted subgroups </td><td> SG16, EWG, CWG </td></tr><tr><td> Ship vehicle </td><td> C++23 </td></tr><tr><td> Reply-to </td><td> Peter Bindels &lt;dascandy@gmail.com&gt; </td></tr><tr><td> </td><td> Peter Brett &lt;pbrett@cadence.com&gt; </td></tr><tr><td> </td><td> Hana Dusíková &lt;hanicka@hanicka.net&gt; </td></tr><tr><td> </td><td> Tom Honermann &lt;tom@honermann.net&gt; </td></tr></tbody></table><h1 data-number="1" id="Abstract"><span class="header-section-number">1</span> Abstract<a href="#Abstract" class="self-link"></a></h1><p><span class="code">std::regex</span> is a type that was introduced in C++11. It has performance in all implementations that is very suboptimal compared to contemporary regex engines. The implementation requires mishandling Unicode in fundamental ways. It gives the user the choice of 6 different regular expression dialects, making code maintenance very hard and attempts at improving the set of supported features much harder. Any attempt to fix this is being met with strong resistance on basis of ABI breakage. Papers to accomplish this still take up committee time in processing. There are new proposals for regular expression engines in C++23 and up that handle all these issues, and are more widely applicable than <span class="code">std::regex</span> currently is and can be. As a whole <span class="code">std::regex</span> is a type that, as a C++ programmer, you are much better off avoiding altogether. Its performance is bad and its behavior is wrong. We believe that we are better off informing users and potential paper authors about this information up-front.</p><h1 data-number="2" id="Goal-of-this-paper"><span class="header-section-number">2</span> Goal of this paper<a href="#Goal-of-this-paper" class="self-link"></a></h1><p>The goal of this paper is to deprecate <span class="code">std::regex</span> in C++23. We believe this is the correct cause of action because of the following:</p><ul><li><span class="code">std::regex</span> is unable to match Unicode in either 8-bit or 16-bit character sets. All character sets in common use as interchange formats are 8-bit or 16-bit.</li><li><span class="code">std::regex</span> by default uses the global locale object, which is known to cause many serialization and deserialization problems in many countries (excluding those that happen to match with what the US or C locales do). </li><li>The performance of implementations in all common compilers are far from optimal, and in some cases multiple orders of magnitude slower than other contemporary implementations.</li><li>Current implementations are unable to modify the implementation other than making a full ABI break.</li></ul><p>We are proposing to not remove <span class="code">std::regex</span> in the C++23 timeframe.</p><ul><li><span class="code">std::regex</span> is not unusable in restricted domains.</li><li>Its performance is acceptable to some programs.</li><li>Customers that have shipped software with these implementations, accepting these restrictions and dangers, should not be unduly laden with the task of modifying their program before we have a proper replacement.</li></ul><p>In analogy, <span class="code">std::regex</span> is in a similar position to std::auto_ptr in the 2007-2008 timeframe. If we had had a release planned for 2008, a similar paper would have argued for deprecating it in (a hypothetical) C++08, while only providing a replacement in C++11. The meaning of this proposed deprecation is:</p><ul><li>This type has problems.</li><li>You are better off not using this, or using something in a non-standard library</li><li>Papers submitted to fix this type in-place are not able to get through the standard committee, and we are hoping to spend time on the replacement rather than re-investigating a possible tweak to the existing type.</li></ul><h1 data-number="3" id="Problems-with--std--regex--in-more-detail"><span class="header-section-number">3</span> Problems with `std::regex` in more detail<a href="#Problems-with--std--regex--in-more-detail" class="self-link"></a></h1><h2 data-number="3.1" id="Unicode-matching"><span class="header-section-number">3.1</span> Unicode matching<a href="#Unicode-matching" class="self-link"></a></h2><p><span class="code">std::regex</span> treats the expression to be matched as a code-unit oriented expression. It does not take into account code points made up from more than a single code unit, normalization of any form, nor any of the extensions many regular expression libraries offer with regards to matching Unicode properties.</p><h3 data-number="3.1.1" id="Matching-code-units"><span class="header-section-number">3.1.1</span> Matching code units<a href="#Matching-code-units" class="self-link"></a></h3><p>When a letter is from the non-ASCII part of Unicode in UTF8, from the non-BMP part of Unicode in UTF16, or from a multibyte encoded character in any other encoding, it will match each code unit making up the sequence for at code point individually. This makes an alphabet match match entirely the wrong things. As an example, trying to find "[&aacute;]" (code point 0xE1, code unit sequence "0xC3 0xA1") in the string "¡&aring;" (0xC2 0xA1 0xC3 0xA5) will return two matches - one for the second code unit in the first character, and one for the first code unit of the second character. It will also happily match "&#x2221;" (0xE2 0x88 0xA1, mathematical symbol for measured corner) and "&#x2F61;" (0xE2 0xBD 0xA1, Kangxi Radical Tile) once, and "&#x6861;" (0xE6 0xA1 0xA1, Chinese character for "bent or twisted piece of wood") twice, despite having no connection with them whatsoever. It is possible to work around this issue by defining <span class="code">using u32regex = basic_regex&lt;char32_t&gt;</span> and doing all operations in UTF32, at a large cost to both convenience, memory and performance.</p><h3 data-number="3.1.2" id="Normalization"><span class="header-section-number">3.1.2</span> Normalization<a href="#Normalization" class="self-link"></a></h3><p>The pattern "&aacute;" (0xC3 0xA1) will not match the string "a&#x301;" (0x61 0xCC 0x81), nor will the pattern "a&#x301;" (0x61 0xCC 0x81) find any results in the string "&aacute;" (0xC3 0xA1). Both strings contain a single grapheme, even from a strict Unicode point of view. In well-behaved Unicode software, these should be treated as equals but <span class="code">std::regex</span> contains no provisions for that. This can be worked around by using normalization before passing strings and patterns to <span class="code">std::regex</span>. This is an extra step and easily forgotten, leading to bugs not easily found by testers, yet likely triggered in common use. </p><h3 data-number="3.1.3" id="Unicode-properties"><span class="header-section-number">3.1.3</span> Unicode properties<a href="#Unicode-properties" class="self-link"></a></h3><p>As <span class="code">std::regex</span> treats each code unit as a separate thing to be looked at, it is not possible to define a char_traits that returns correct information for any unicode character consisting of more than a single code unit. This also means that the regex portions that match a named group of characters, like "\s" (whitespace), will not match any whitespace character outside of ASCII. A string like "123&nbsp;456" will not match a pattern "[0-9]*\s[0-9]*". It is possible to work around this issue by defining <span class="code">using u32regex = basic_regex&lt;char32_t&gt;</span> and doing all operations in UTF32, at a large cost to both convenience, memory and performance.</p><h2 data-number="3.2" id="Performance"><span class="header-section-number">3.2</span> Performance<a href="#Performance" class="self-link"></a></h2><p>Need input! Help me Hana! Help me Hana! Number 5 is alive!</p><h2 data-number="3.3" id="ABI-issues-with-fixes"><span class="header-section-number">3.3</span> ABI issues with fixes<a href="#ABI-issues-with-fixes" class="self-link"></a></h2><p>At the last meeting in Prague a paper was brought up that addressed the need to have ABI breaks so that many known existing inefficiencies in the implementation of many interfaces can be fixed. This does not address any API breakage, which would also be necessary for <span class="code">std::regex</span>, but just the ABI breakage. This led to the following vote:</p><p class="quote">We should consider a big ABI break for C++23</p><table><tbody><tr><td>SF </td><td>F </td><td>N </td><td>A </td><td>SA</td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td>17 </td><td>44 </td><td>15 </td><td>31 </td><td>20 </td></tr></tbody></table><p>which got no consensus. No other concrete date was proposed, and the idea of doing a big break in *some* version of C++ only barely got consensus.</p><p class="quote">We should consider a big ABI break for C++SOMETHING</p><table><tbody><tr><td>SF </td><td>F </td><td>N </td><td>A </td><td>SA</td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td>39 </td><td>41 </td><td>14 </td><td>23 </td><td>14 </td></tr></tbody></table><p>but which still leaves a major opening for rejecting it for each specific version proposed. In addition, the paper mentions:</p><p class="quote">the behavior of WG21 for several years has been to give standard library implementers an effective veto on any proposal that would break ABI. <a title="What is ABI" href="#ref-1">[1]</a></p><p>and we know of at least one major vendor whose implementation is unable to accept any modification without a major ABI break. The earliest possible time we could have a regex implementation that users could actually rely on would be 2026, with it being known many projects lagging 5 years behind the standard introduction it is likely over a decade from now before we can actually use the regular expressions in the standard usefully.</p><h2 data-number="3.4" id="Locale-issues"><span class="header-section-number">3.4</span> Locale issues<a href="#Locale-issues" class="self-link"></a></h2><p><span class="code">std::regex</span> by default uses the system locale for matching. <span class="code">std::basic_regex</span> and <span class="code">std::regex_traits</span> can both be imbued with a <span class="code">std::locale</span> object (the former dispatches to the latter).  The locale object affects collation behavior, at least when <span class="code">std::regex::collate</span> is enabled. When not imbued, the global locale object will be consulted for locale sensitive operations. This leads to very interesting locale-specific behavior, which is commonly not tested well on delivered software or marked up in release notes.<a title="StackOverflow question on std::regex locale awareness" href="#ref-2">[2]</a>.</p><p>Additionally, as the locale is consulted based on code units, for any encoding that uses multi-code-unit sequences it will be impossible to make a regex_traits that treats characters correctly.</p><h1 data-number="4" id="Proposed-current-resolution"><span class="header-section-number">4</span> Proposed current resolution<a href="#Proposed-current-resolution" class="self-link"></a></h1><h2 data-number="4.1" id="Consideration-for-current-users"><span class="header-section-number">4.1</span> Consideration for current users<a href="#Consideration-for-current-users" class="self-link"></a></h2><h2 data-number="4.2" id="How-a-replacement-avoids-these-issues"><span class="header-section-number">4.2</span> How a replacement avoids these issues<a href="#How-a-replacement-avoids-these-issues" class="self-link"></a></h2><h2 data-number="4.3" id="Alternatives-considered"><span class="header-section-number">4.3</span> Alternatives considered<a href="#Alternatives-considered" class="self-link"></a></h2><p>If we could do an ABI break, we could fix <span class="code">std::regex</span>'s poor performance (<a title="Slide 3/0/3 from CTRE presentation" href="#ref-3">[3]</a> and <a title="Slide 13/2/8 from CTRE presentation" href="#ref-4">[4]</a>) and add some UTF-8 support <a title="P1844" href="#ref-5">[5]</a>.</p><p>However, since WG21 decided not to break ABI {{citation needed}} and as a partial ABI break for <span class="code">std::regex</span> would be more painful than a deprecation (such things were tried for C++11's <span class="code">std::string</span>), we think deprecation is the only sensible path forward.</p><p>It would be worth fixing the shortcomings listed in this paper only if WG21 were willing to take an ABI break (as advocated by <a title="What is ABI" href="#ref-1">[1]</a>) and if implementors took advantage of that ABI break to improve <span class="code">std::regex</span> performance.</p><p>Deprecating <span class="code">std::regex</span> and switching to a new regex type will be very expensive for programmers, and we would not recommend it if we had any other option.</p><h1 data-number="5" id="References-"><span class="header-section-number">5</span> References:<a href="#References-" class="self-link"></a></h1><ol><li id="#ref-1"><a href="http://wg21.link/p2028">What is ABI (http://wg21.link/p2028)</a></li><li id="#ref-2"><a href="https://stackoverflow.com/questions/48222974/is-stdregex-always-locale-aware">StackOverflow question on std::regex locale awareness (https://stackoverflow.com/questions/48222974/is-stdregex-always-locale-aware)</a></li><li id="#ref-3"><a href="https://compile-time.re/cpprussia-piter/slides/#/3/0/3">Slide 3/0/3 from CTRE presentation (https://compile-time.re/cpprussia-piter/slides/#/3/0/3)</a></li><li id="#ref-4"><a href="https://compile-time.re/cpprussia-piter/slides/#/13/2/8">Slide 13/2/8 from CTRE presentation (https://compile-time.re/cpprussia-piter/slides/#/13/2/8)</a></li><li id="#ref-5"><a href="http://wg21.link/p1844">P1844 (http://wg21.link/p1844)</a></li></ol></body></html>

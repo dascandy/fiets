@@ -56,7 +56,7 @@ As a more formal specification:
 
 Thank you to Nathan Sidwell for his help with implementing modules, Gabriel Dos Reis for the original Modules TS and all other contributors to the existing Visual Studio, Clang and GCC implementations. An additional thank you is extended to the people working on build system and related tools, for inspiring this paper. A final thank you goes to Bryce Adelstein Lelbach for providing the impetus to actually write the paper.
 
-## References
+# References
 
 [[references]]
 

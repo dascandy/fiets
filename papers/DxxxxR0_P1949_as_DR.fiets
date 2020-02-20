@@ -42,7 +42,7 @@ The intent of this poll is to see if we want to amend the existing standard (pos
 
 - Is it possible to amend the existing C++11/14/17 standard with this defect report to refer to the Unicode standards available now, so that the references required by P1949 exist?
 
-If it's impossible to adjust a 2011 standard to refer to a newer release of Unicode, this makes the approach proposed herein unusable. 
+If it\'s impossible to adjust a 2011 standard to refer to a newer release of Unicode, this makes the approach proposed herein unusable. 
 
 # Wording
 

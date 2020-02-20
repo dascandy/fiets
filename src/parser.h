@@ -42,24 +42,26 @@ struct IdentifierDefinition {
 struct Table {
   std::vector<std::vector<Text>> entries;
 };
+struct Quote { Text text; };
 
 struct References {};
 struct TOC {};
 
-using DocumentEntry = std::variant<Code, List, OrderedList, IdentifierDefinition, Table, Text, References, TOC>;
+using DocumentEntry = std::variant<Code, List, OrderedList, IdentifierDefinition, Table, Text, References, TOC, Quote>;
 
 struct Chapter {
   int level;
-  std::string_view text;
+  std::string_view title;
   std::vector<DocumentEntry> entries;
   std::vector<Chapter> subchapters;
-  Chapter(int level, std::string_view text) 
+  Chapter(int level, std::string_view title) 
   : level(level)
-  , text({{text}})
+  , title(title)
   {}
 };
 
 struct Document : Chapter {
+  std::string_view subtitle;
   Document() : Chapter{0, ""} {}
   std::vector<Referenced> references;
   uint32_t addReference(std::string url, std::string name);

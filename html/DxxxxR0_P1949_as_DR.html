@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="dascandy/fiets">
+<title>
+P1949 should be retroactively applied to C++11, 14, 17 and 20 as a defect report</title>
+  <style type="text/css">
+body {
+  margin: 5em;
+  font-family: sans-serif;
+  hyphens: auto;
+  line-height: 1.35;
+}
+ul {
+  padding-left: 2em;
+}
+h1, h2, h3, h4 {
+  position: relative;
+  line-height: 1;
+}
+h1.title {
+}
+h2.subtitle {
+}
+h1.toc a, h2.toc a, h3.toc a, h4.toc a {
+  text-decoration: none;
+  color: #000000;
+}
+h1.toc a:hover, h2.toc a:hover, h3.toc a:hover, h4.toc a:hover {
+  text-decoration: underline;
+}
+a.self-link {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * (3.5rem - 26px));
+  width: calc(3.5rem - 26px);
+  height: 2em;
+  text-align: center;
+  border: none;
+  transition: opacity .2s;
+  opacity: .5;
+  font-family: sans-serif;
+  font-weight: normal;
+  font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+span.identifier {
+  font-style: italic;
+}
+span.new {
+  text-decoration: underline;
+  background-color: #006e28;
+}
+span.code {
+  font-family: Courier New, monospace;
+  background-color: #e8e8e8;
+  white-space: pre;
+}
+span.delete {
+  text-decoration: line-through;
+  background-color: #bf0303;
+}
+p.indent {
+  margin-left: 50px;
+}
+p.quote {
+  margin-left: 50px;
+  border: 2px solid black;
+  background-color: #f0f0e0;
+}
+table {
+  border: 1px solid black;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0.8em;
+  text-align: left;
+  hyphens: none; 
+}
+td, th {
+  padding-left: 1em;
+  padding-right: 1em;
+  vertical-align: top;
+}
+th {
+  border-bottom: 2px solid black;
+  background-color: #f0f0f0;
+}
+</style>
+</head>
+<body>
+<h1 class="title" style="text-align:center">P1949 should be retroactively applied to C++11, 14, 17 and 20 as a defect report</h1><table><tbody><tr><td> Document # </td><td> DxxxxR0 </td></tr><tr><td> Date </td><td> 2020-02-16 </td></tr><tr><td> Project </td><td>	Programming Language C++ </td></tr><tr><td> Targeted subgroups </td><td> SG16, EWG, CWG </td></tr><tr><td> Reply-to </td><td> Peter Bindels &lt;dascandy@gmail.com&gt; </td></tr></tbody></table><h1 data-number="1" id="Abstract"><span class="header-section-number">1</span> Abstract<a href="#Abstract" class="self-link"></a></h1><p>In Prague we decided that P1949 is a good idea and tentatively ready to apply to C++23. This indicates that we have an evolutionary agreement that this is the solution that we decide we want.</p><p>Prague vote in EWG: D1949R2 is tentatively ready to go to CWG for C++23</p><table><tbody><tr><td> SF </td><td> 	F </td><td> 	N </td><td> 	A </td><td> 	SA</td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td> 12 </td><td>	8 </td><td>	1 </td><td>	0 </td><td>	0 </td></tr></tbody></table><p>The current status of support for compilers is that they must do what C++11-20 indicated in terms of Unicode support, including the now disallowed ranges, up to and including C++20, then to switch over in C++23 to the new set of support. This makes it likely people will write code in C++11, 14, 17 or 20 in the coming few years that will then be declared invalid by C++23. Additionally, it adds an implementation burden on the implementers to keep supporting the old, now known to be troublesome, set of characters as specified in C++11-20.</p><p>This paper proposes to take the solution that was agreed upon and applies it to C++11, C++14, C++17 and C++20 (the IS variants of ISO/IEC 14882 from 2011, 2014, 2017, 2020). The targeted result of that is a simplified implementation for implementers, and less surprise for users.</p><h1 data-number="2" id="Requested-feedback"><span class="header-section-number">2</span> Requested feedback<a href="#Requested-feedback" class="self-link"></a></h1><h2 data-number="2.1" id="SG16"><span class="header-section-number">2.1</span> SG16<a href="#SG16" class="self-link"></a></h2><ul><li>As the Unicode study group we believe it is in the best interest of the current state and future of C++ to apply P1949 retroactively, as a defect report, to C++ going back to the original introduction of the Unicode ranges in the specification.</li></ul><p>If the Unicode study group believes we should keep this to C++23 and beyond, it would be hard to argue in Evolution. This poll is to provide SG16 with an official poll to influence EWG in the direction they believe is best.</p><h2 data-number="2.2" id="EWG"><span class="header-section-number">2.2</span> EWG<a href="#EWG" class="self-link"></a></h2><ul><li>We believe that it is in the best interest of C++ to apply P1949 to C++20 as a Defect Report.</li></ul><p>The intent of this poll is for the decision to be taken at Varna, making it a defect report released simultaneously with the standard release, allowing compiler implementers to accelerate deployment of P1949 for C++23 without breaking C++20.</p><ul><li>We believe that it is in the best interest of C++ to apply P1949 to C++11, 14 and 17 as a Defect Report.</li></ul><p>The intent of this poll is to see if we want to amend the existing standard (possibly down to a different cutoff release) to simplify the implementation and end-user understanding. </p><h2 data-number="2.3" id="CWG"><span class="header-section-number">2.3</span> CWG<a href="#CWG" class="self-link"></a></h2><ul><li>Is it possible to amend the existing C++11/14/17 standard with this defect report to refer to the Unicode standards available now, so that the references required by P1949 exist?</li></ul><p>If it's impossible to adjust a 2011 standard to refer to a newer release of Unicode, this makes the approach proposed herein unusable. </p><h1 data-number="3" id="Wording"><span class="header-section-number">3</span> Wording<a href="#Wording" class="self-link"></a></h1><p>See P1949, taking into account that the Annex C modification would then need to be adjusted to a different year, or otherwise differently formulated as the behavior it is removing is then retroactively not in the older standard.</p></body></html>

@@ -18,6 +18,10 @@ std::string as_html(const Reference& i) {
   return "<a title=\"" + doc->references[i.index-1].name + "\" href=\"#ref-" + std::to_string(i.index) + "\">[" + std::to_string(i.index) + "]</a>";
 }
 
+std::string as_html(const Quote& i) {
+  return "<p class=\"quote\">" + as_html(i.text) + "</p>";
+}
+
 std::string as_html(const Identifier& i) {
   return "<span class=\"identifier\">" + std::string(i.text) + "</span>";
 }
@@ -51,8 +55,33 @@ std::string as_html(const References&) {
   return accum;
 }
 
+std::string as_id(std::string_view name) {
+  std::string id(name);
+  size_t pos = id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
+  while (pos != std::string::npos) {
+    if (id[pos] == '+') id[pos] = 'p';
+    else id[pos] = '-';
+    pos = id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
+  }
+  return id;
+}
+
+std::string as_html_toc(const Chapter& chap, std::string prefix, size_t size) {
+  std::string accum;
+  accum += "<h" + std::to_string(size) + " class=\"toc\"><a href=\"#" + as_id(chap.title) + "\">" + prefix + " " + std::string(chap.title) + "</a></h" + std::to_string(size) + ">";
+  for (size_t n = 0; n < chap.subchapters.size(); n++) {
+    accum += as_html_toc(chap.subchapters[n], prefix + "." + std::to_string(n + 1), 3);
+  }
+  return accum;
+}
+
 std::string as_html(const TOC& i) {
-  return "TODO";
+  std::string accum;
+  accum += "<h1 class=\"toc\">Table of contents</h1>";
+  for (size_t n = 0; n < doc->subchapters.size(); n++) {
+    accum += as_html_toc(doc->subchapters[n], std::to_string(n + 1), 2);
+  }
+  return accum;
 }
 
 std::string as_html(const Text& l) {
@@ -118,20 +147,9 @@ std::string as_html(const Table& l) {
   return accum;
 }
 
-std::string as_id(std::string_view name) {
-  std::string id(name);
-  size_t pos = id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
-  while (pos != std::string::npos) {
-    if (id[pos] == '+') id[pos] = 'p';
-    else id[pos] = '-';
-    pos = id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
-  }
-  return id;
-}
-
 std::string as_html(std::string name, const Chapter& ch) {
   std::string accum;
-  accum += "<h" + std::to_string(ch.level) + " data-number=\"" + std::string(name) + "\" id=\"" + as_id(ch.text) + "\"><span class=\"header-section-number\">" + name + "</span> " + std::string(ch.text) + "<a href=\"#" + as_id(ch.text) + "\" class=\"self-link\"></a></h" + std::to_string(ch.level) + ">";
+  accum += "<h" + std::to_string(ch.level) + " data-number=\"" + std::string(name) + "\" id=\"" + as_id(ch.title) + "\"><span class=\"header-section-number\">" + name + "</span> " + std::string(ch.title) + "<a href=\"#" + as_id(ch.title) + "\" class=\"self-link\"></a></h" + std::to_string(ch.level) + ">";
   for (auto& el : ch.entries) {
     accum += std::visit([](auto e){ 
       if constexpr (std::is_same_v<std::remove_cvref_t<decltype(e)>, Text>) {
@@ -153,9 +171,11 @@ std::string as_html(const Document& ch) {
   doc = &ch;
   std::string accumulator = html_header1;
   accumulator.reserve(400000);
-  accumulator += ch.text;
+  accumulator += ch.title;
   accumulator += html_header2;
-  accumulator += "<h1 class=\"title\" style=\"text-align:center\">" + std::string(ch.text) + "</h1>";
+  accumulator += "<h1 class=\"title\" style=\"text-align:center\">" + std::string(ch.title) + "</h1>";
+  if (!ch.subtitle.empty()) 
+    accumulator += "<h2 class=\"subtitle\" style=\"text-align:center\">" + std::string(ch.subtitle) + "</h2>";
 
   for (auto& el : ch.entries) {
     accumulator += std::visit([](auto e){ return as_html(e); }, el);
@@ -197,6 +217,17 @@ std::string html_header1 =
   "  position: relative;\n"
   "  line-height: 1;\n"
   "}\n"
+  "h1.title {\n"
+  "}\n"
+  "h2.subtitle {\n"
+  "}\n"
+  "h1.toc a, h2.toc a, h3.toc a, h4.toc a {\n"
+  "  text-decoration: none;\n"
+  "  color: #000000;\n"
+  "}\n"
+  "h1.toc a:hover, h2.toc a:hover, h3.toc a:hover, h4.toc a:hover {\n"
+  "  text-decoration: underline;\n"
+  "}\n"
   "a.self-link {\n"
   "  position: absolute;\n"
   "  top: 0;\n"
@@ -232,6 +263,11 @@ std::string html_header1 =
   "p.indent {\n"
   "  margin-left: 50px;\n"
   "}\n"
+  "p.quote {\n"
+  "  margin-left: 50px;\n"
+  "  border: 2px solid black;\n"
+  "  background-color: #f0f0e0;\n"
+  "}\n"
   "table {\n"
   "  border: 1px solid black;\n"
   "  border-collapse: collapse;\n"
@@ -247,7 +283,8 @@ std::string html_header1 =
   "  vertical-align: top;\n"
   "}\n"
   "th {\n"
-  "  border-bottom: 1px solid black;\n"
+  "  border-bottom: 2px solid black;\n"
+  "  background-color: #f0f0f0;\n"
   "}\n"
   "</style>\n"
   "</head>\n"

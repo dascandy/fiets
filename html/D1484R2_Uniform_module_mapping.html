@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="dascandy/fiets">
+<title>
+A uniform and predefined mapping from module names to file names</title>
+  <style type="text/css">
+body {
+  margin: 5em;
+  font-family: sans-serif;
+  hyphens: auto;
+  line-height: 1.35;
+}
+ul {
+  padding-left: 2em;
+}
+h1, h2, h3, h4 {
+  position: relative;
+  line-height: 1;
+}
+h1.title {
+}
+h2.subtitle {
+}
+h1.toc a, h2.toc a, h3.toc a, h4.toc a {
+  text-decoration: none;
+  color: #000000;
+}
+h1.toc a:hover, h2.toc a:hover, h3.toc a:hover, h4.toc a:hover {
+  text-decoration: underline;
+}
+a.self-link {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * (3.5rem - 26px));
+  width: calc(3.5rem - 26px);
+  height: 2em;
+  text-align: center;
+  border: none;
+  transition: opacity .2s;
+  opacity: .5;
+  font-family: sans-serif;
+  font-weight: normal;
+  font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+span.identifier {
+  font-style: italic;
+}
+span.new {
+  text-decoration: underline;
+  background-color: #006e28;
+}
+span.code {
+  font-family: Courier New, monospace;
+  background-color: #e8e8e8;
+  white-space: pre;
+}
+span.delete {
+  text-decoration: line-through;
+  background-color: #bf0303;
+}
+p.indent {
+  margin-left: 50px;
+}
+p.quote {
+  margin-left: 50px;
+  border: 2px solid black;
+  background-color: #f0f0e0;
+}
+table {
+  border: 1px solid black;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0.8em;
+  text-align: left;
+  hyphens: none; 
+}
+td, th {
+  padding-left: 1em;
+  padding-right: 1em;
+  vertical-align: top;
+}
+th {
+  border-bottom: 2px solid black;
+  background-color: #f0f0f0;
+}
+</style>
+</head>
+<body>
+<h1 class="title" style="text-align:center">A uniform and predefined mapping from module names to file names</h1><table><tbody><tr><td> Document number </td><td> P1484R2 </td></tr><tr><td> Date </td><td> 2020-02-20 </td></tr><tr><td> Reply-to </td><td> Peter Bindels &lt;dascandy@gmail.com&gt; </td></tr><tr><td> Targeted subgroups </td><td> SG16, EWG, CWG </td></tr><tr><td> Ship vehicle </td><td> C++23 </td></tr></tbody></table><h1 class="toc">Table of contents</h1><h2 class="toc"><a href="#Introduction">1 Introduction</a></h2><h2 class="toc"><a href="#Motivation-and-Scope">2 Motivation and Scope</a></h2><h2 class="toc"><a href="#Impact-On-the-Standard">3 Impact On the Standard</a></h2><h2 class="toc"><a href="#Design-Decisions">4 Design Decisions</a></h2><h2 class="toc"><a href="#Wording">5 Wording</a></h2><h2 class="toc"><a href="#Acknowledgements">6 Acknowledgements</a></h2><h2 class="toc"><a href="#References">7 References</a></h2><h1 data-number="1" id="Introduction"><span class="header-section-number">1</span> Introduction<a href="#Introduction" class="self-link"></a></h1><p>In compiling software users currently work with include paths and complicated build system driven include path orders to find the relevant headers for compiling their software. In a post-modules world, there would need to be an equivalent lookup from module name to module source or binary module include file done. This paper explores a direction already taken by many existing modules implementations; having a deterministic mapping from module name to source name and location.</p><h1 data-number="2" id="Motivation-and-Scope"><span class="header-section-number">2</span> Motivation and Scope<a href="#Motivation-and-Scope" class="self-link"></a></h1><p>In the current paper on modules <a title="P1103" href="#ref-1">[1]</a> the question on how to map from a given module import to the appropriate module export statement is not specified. Multiple suggestions have been made to fix this problem in a roundabout way (<a title="P1184" href="#ref-2">[2]</a>, <a title="P1302" href="#ref-3">[3]</a>) but these solutions do not tackle the full holistic problem of mapping an import to a pre-compiled BMI file resulting in a feasible build tree that a tool can realistically retrieve from the input files <a title="P1427" href="#ref-4">[4]</a>. In this paper we take a step beyond the proposal suggested in <a title="P1302" href="#ref-3">[3]</a> - having a fixed method for finding the module imports referenced. This answers the question how to resolve a given import to a relevant binary module import. The solution proposed is far from a new idea - GCC and Clang already implement a form of it. As the C++ standard itself does not define how compilers are implemented; this paper targets the SG15 TR slated to be created for this purpose. That is actually the desired outcome - to have a standard described way of doing something, while leaving the implementers free to do something when it is not applicable or when something else with clear benefits seems to exist. As of yet, similar to Clang -fimplicit_module_maps <a title="" href="#ref-5">[5]</a> and GCC’s default lookup start (“The GCC modules implementation began with a fixed mapping of module name to BMI filename, and a search path to look for them.” <a title="P1184" href="#ref-2">[2]</a>).</p><h1 data-number="3" id="Impact-On-the-Standard"><span class="header-section-number">3</span> Impact On the Standard<a href="#Impact-On-the-Standard" class="self-link"></a></h1><p>As the change is around how compilers perform a lookup it would be a non-normative addition to the proposed modules implementation <a title="P1103" href="#ref-1">[1]</a>. The intended wording would be similar to P1302 but specifying the module lookup that P1302 explicitly does not propose.</p><h1 data-number="4" id="Design-Decisions"><span class="header-section-number">4</span> Design Decisions<a href="#Design-Decisions" class="self-link"></a></h1><p>Q: How does this mapping compare to the one introduced by P1302? </p><p>A: The mapping is intentionally specified as one that matches the results from P1302, while explicitly choosing the alternative it spells out as “We do not do this” in its Design section. The design is 100% compatible with P1302 and includes it wholly. </p><p>Q: Is the mapping a forced requirement? What if the system in question is unable to use it?</p><p>A: In order for the mapping to be a useful standard, its use is strongly recommended if the system is able to support it. Three mappings are given as examples and if any of these is implementable, using them has preference over a platform specific choice. If none of the three are supportable, the suggestion is to make a platform-specific documented fixed transformation from module to originating file, publicly shared to avoid conflicting standards on platforms and to encourage tool developers to support these transformations on the given platforms.</p><p>Q: What if a collision occurs between a module and its partition, versus a different moduleand (potentially) its partition? The paper proposes this to be malformed code. For example, having a io partition in std, and a std.io module would be considered ill-formed, no diagnostic required (but very welcome regardless).</p><h1 data-number="5" id="Wording"><span class="header-section-number">5</span> Wording<a href="#Wording" class="self-link"></a></h1><p>Given a module import for “std.io”, the tool or compiler will know this comes from one of the following three specific files:</p><ul><li>“std/io/module.cxx”</li><li>“std/io.cxx”</li><li>“std.io.cxx”</li></ul><p>in that order. When none of these are found, the compiler will not resolve the module. Module partitions are mapped equivalently, treating the partition separator as equivalent to the dot. An example for “std.io:stream”:</p><ul><li>“std/io/stream/module.cxx”</li><li>“std/io/stream.cxx”</li><li>“std.io.stream.cxx”</li></ul><p>As a more formal specification:</p><ul><li>The name is transformed by replacing all dots with ‘/’, and appending ‘/module.cxx’</li><li>The name is transformed by replacing all dots with ‘/’ and appending ‘.cxx’</li><li>The name is transformed by appending ‘.cxx’.</li></ul><h1 data-number="6" id="Acknowledgements"><span class="header-section-number">6</span> Acknowledgements<a href="#Acknowledgements" class="self-link"></a></h1><p>Thank you to Nathan Sidwell for his help with implementing modules, Gabriel Dos Reis for the original Modules TS and all other contributors to the existing Visual Studio, Clang and GCC implementations. An additional thank you is extended to the people working on build system and related tools, for inspiring this paper. A final thank you goes to Bryce Adelstein Lelbach for providing the impetus to actually write the paper.</p><h1 data-number="7" id="References"><span class="header-section-number">7</span> References<a href="#References" class="self-link"></a></h1><ol><li id="#ref-1"><a href="http://wg21.link/p1103">P1103 (http://wg21.link/p1103)</a></li><li id="#ref-2"><a href="http://wg21.link/p1184">P1184 (http://wg21.link/p1184)</a></li><li id="#ref-3"><a href="http://wg21.link/p1302">P1302 (http://wg21.link/p1302)</a></li><li id="#ref-4"><a href="http://wg21.link/p1427">P1427 (http://wg21.link/p1427)</a></li><li id="#ref-5"><a href="https://clang.llvm.org/docs/Modules.html#module-maps"> (https://clang.llvm.org/docs/Modules.html#module-maps)</a></li></ol></body></html>

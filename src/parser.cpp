@@ -123,7 +123,10 @@ Document parse(std::string_view file) {
   for (auto& line : split(file, "\n")) {
     lineNumber++;
     if (lineNumber == 1) {
-      currentChapter->text = line;
+      doc.title = line;
+      continue;
+    } else if (lineNumber == 2 && !line.empty()) {
+      doc.subtitle = line;
       continue;
     }
     switch(state) {
@@ -145,6 +148,8 @@ Document parse(std::string_view file) {
         state = Codeblock;
         codeLanguage = line.substr(3);
         accumulated = "";
+      } else if (line.starts_with("> ")) {
+        currentChapter->entries.push_back(Quote{parseText(line.substr(2), doc)});
       } else if (line.starts_with("[[references]]")) {
         currentChapter->entries.push_back(References());
       } else if (line.starts_with("[[TOC]]")) {
@@ -169,7 +174,7 @@ Document parse(std::string_view file) {
           lineEntries.push_back(parseText(entry, doc));
         }
       } else if (line.size() >= 10 && line.find_first_not_of("-") == std::string::npos) {
-
+//        currentChapter->entries.push_back(PageBreak{});
       } else if ( false /* is an ordered list entry */) {
         // TODO
       } else {

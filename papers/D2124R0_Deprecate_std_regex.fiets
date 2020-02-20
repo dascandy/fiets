@@ -1,5 +1,5 @@
 Deprecate std::regex
-%s/\[a-z_\]*regex\[a-z_\]*/\[\[deprecated\]\] &/g
+%s/[a-z_]*regex[a-z_]*/[[deprecated]] &/g
 
 | Document # | P2124R1 |
 | Date | 2020-02-16 |
@@ -59,11 +59,27 @@ Need input! Help me Hana! Help me Hana! Number 5 is alive!
 
 ## ABI issues with fixes
 
-Can we get input from Billy O\'Neal for this bit?
+At the last meeting in Prague a paper was brought up that addressed the need to have ABI breaks so that many known existing inefficiencies in the implementation of many interfaces can be fixed. This does not address any API breakage, which would also be necessary for `std::regex`, but just the ABI breakage. This led to the following vote:
 
-String fragment follow - have a large enough problem with changing the implementation even a minute bit that they are very likely to either veto any change, or keep it as a defect in their implementation until the next ABI break on that platform (which in experience amounts to order-of-size a decade).
+> We should consider a big ABI break for C++23
 
+|SF |F |N |A |SA|
+|-|-|-|-|-|
+|17 |44 |15 |31 |20 |
 
+which got no consensus. No other concrete date was proposed, and the idea of doing a big break in *some* version of C++ only barely got consensus.
+
+> We should consider a big ABI break for C++SOMETHING
+
+|SF |F |N |A |SA|
+|-|-|-|-|-|
+|39 |41 |14 |23 |14 |
+
+but which still leaves a major opening for rejecting it for each specific version proposed. In addition, the paper mentions:
+
+> the behavior of WG21 for several years has been to give standard library implementers an effective veto on any proposal that would break ABI. [http://wg21.link/p2028](What is ABI)
+
+and we know of at least one major vendor whose implementation is unable to accept any modification without a major ABI break. The earliest possible time we could have a regex implementation that users could actually rely on would be 2026, with it being known many projects lagging 5 years behind the standard introduction it is likely over a decade from now before we can actually use the regular expressions in the standard usefully.
 
 ## Locale issues
 
@@ -79,7 +95,7 @@ Additionally, as the locale is consulted based on code units, for any encoding t
 
 ## Alternatives considered
 
-If we could do an ABI break, we could fix `std::regex`\'s poor performance ([https://compile-time.re/cpprussia-piter/slides/#/13/2/8](Slide 3/0/3 from CTRE presentation) and [https://compile-time.re/cpprussia-piter/slides/#/13/2/8](Slide 13/2/8 from CTRE presentation)) and add some UTF-8 support [http://wg21.link/p1844](P1844).
+If we could do an ABI break, we could fix `std::regex`\'s poor performance ([https://compile-time.re/cpprussia-piter/slides/#/3/0/3](Slide 3/0/3 from CTRE presentation) and [https://compile-time.re/cpprussia-piter/slides/#/13/2/8](Slide 13/2/8 from CTRE presentation)) and add some UTF-8 support [http://wg21.link/p1844](P1844).
 
 However, since WG21 decided not to break ABI {{citation needed}} and as a partial ABI break for `std::regex` would be more painful than a deprecation (such things were tried for C++11\'s `std::string`), we think deprecation is the only sensible path forward.
 
