@@ -93,7 +93,13 @@ std::string as_html(const Text& l) {
 }
 
 std::string as_html(const Code& c) {
-  return "<code><span class=\"code\">" + std::string(c.body) + "</span></code>";
+  std::string copy(c.body);
+  size_t offs = copy.find_first_of("<>");
+  while (offs != std::string::npos) {
+    copy = copy.substr(0, offs) + (copy[offs] == '<' ? "&lt;" : "&gt;") + copy.substr(offs+1);
+    offs = copy.find_first_of("<>");
+  }
+  return "<code><div class=\"code\">" + std::string(copy) + "</div></code>";
 }
 
 std::string as_html(const List& l) {
@@ -251,7 +257,7 @@ std::string html_header1 =
   "  text-decoration: underline;\n"
   "  background-color: #006e28;\n"
   "}\n"
-  "span.code {\n"
+  "div.code, span.code {\n"
   "  font-family: Courier New, monospace;\n"
   "  background-color: #e8e8e8;\n"
   "  white-space: pre;\n"
