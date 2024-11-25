@@ -1,0 +1,289 @@
+Contract labels and evaluation semantics
+
+| Document # | D3522R0 |
+| Date | 2024-11-22 |
+| Project |	Programming Language C++ |
+| Targeted subgroups | SG15, SG21, SG23, EWG |
+| Target release | C++29 |
+| Reply-to | Peter Bindels <dascandy@gmail.com> |
+
+# Abstract
+
+Contracts as specified in P2900R11 do not come with any approach for choosing a contract semantic for any contract, leaving the full definition of how such a construct would work or how a user would practically add a new contract as "implementation defined, papers welcome for post-MVP".
+
+This is one of those post-MVP papers.
+
+We believe that, in order to enable users to effectively start using, keep using, and deploy contracts in production requires a way to specify which contracts have which evaluation semantics, to enable users to assign contracts to profiles, and for the compiler to be able to optimize use of contracts where not in conflict with user expectations and safety concerns.
+
+Optimization is not one of the *goals* of contracts. However, the more contracts work with optimizers, the less impact users can expect from enabling contracts, and the more contracts we can enable without slowing down software beyond its point of existence. Optimization makes more real software safe, therefore we should consider optimization friendlyness at least related to the uptake of contracts.
+
+# Open questions:
+
+Should contract groups and profiles be the *same* set, or a *different* set?
+
+Should contracts always be controlled by a *single* group (if any), or should it be multiple, merged in some way?
+
+Should untagged contracts be switchable in some way?
+
+What about, instead of having the mode overrides that are below, we have "add_X", "remove_X" and "select_X"? Less specific to current modes, but more verbose in some cases.
+
+# Intended use of contracts
+
+To recap, contracts are intended to be used in various evaluation modes. In a given code base, one would add new contracts by adding them in the code, and during their development keep them marked as `enforce`, so that any breakage is visible. The first few production deployments would run them as `observe`, to see if they break anything in production before actually enforcing them in production, especially for larger and older code bases where invariants and preconditions may not always hold as the implementer of a component expects. Subsequently, assuming the contract looks fine, we would change its evaluation mode to `enforce` in production. When something goes wrong (corner cases missed, typically) we have the ability to change them to `ignore` awaiting a developer fixing them. Finally, if we have a contract that always seems to hold in code with little change, we can opt to mark the contract(s) in that section of code as `quick_enforce`, reducing the code size impact.
+
+[P2900] contracts specifies all of the contract machinery, and no methods to actually accomplish any specific evaluation mode on any contracts. This paper is the counterpart to that, specifying the evaluation mode approaches, while specifying nothing on how contracts actually work.
+
+# Prior art
+
+[P2755] is a high level plan for contracts, from which multiple concrete proposals are derived. This paper intends to not diverge too far from what it intends to specify.
+
+[P3321] refers to "The contents of this struct should include a dynamically sized tail that can be expanded with arbitrary additional information that might be used in future extensions, such as specifying labels or custom messages that might have been specified on the contract assertion that was violated". This paper is in line with that.
+
+[P3081] refers to the paper that will be specifying contract groups or profiles.
+
+[https://hsutter.github.io/cppfront/cpp2/contracts/] contains an implementation of contracts with contract groups.
+
+# Relevant papers for the design
+
+[P2900] contains the main contracts proposal. We intend to retain this paper until after P2900 itself is merged into C++, and consider this an addition on the C++ standard that is considered after that timeframe.
+
+[P3100] contains the proposal to convert various forms of undefined behavior and erroneous behavior into contract violations, allowing the contract violation handling logic to take care of them instead of the currently-implied `assume` for UB or `ignore` for EB.
+
+[P3394R0] contains the annotation specification that is used as one of the suggested implementation strategies.
+
+[P3038R0], [P3081R0], [P3447R0] contains profiles, a related safety feature. In many of those papers they point out part of profiles that\'s actually contract violations, and [P3100] proposes to make them so, so this paper takes this into consideration and tries to keep the user facing interface equivalent and usable in joint contract and profile check violations.
+
+# Use cases
+
+- I create a new contract, and want to test it in production. I need to ensure it is not switched to terminate (because that would be bad in production), but it should be available to run or ignore.
+
+- I have an existing contract and it is found to be broken in a relevant situation. The code behind the contract is determined to be safe despite the broken contract. We have to be able to target a specific contract in production, so that we can deploy new software even if a broken contract is present and set to enforce.
+
+- I have contracts that are relevant to the safety and security of my software deployment. In order to be certain that we have *these* contracts enabled in production, I have to be able to force the evaluation mode of them to be `enforce` in a way that is not easily accidentally overridden by either group or global changes.
+
+- I have tests that are verifying that contracts are running correctly. As such, I have to be able to specify a specific evaluation mode and both be 100% sure that it does that, while being clear and readable to others that it does.
+
+- I have user-specified contracts that are logically part of a safety profile, and want to make sure the contract is switched on together with the safety profile.
+
+# Design
+
+To handle the specified use cases, we want to have ways to do the following:
+
+- Be able to specify named groups that join multiple contracts, such that the group can be switched or restricted as one.
+
+- Be able to attach contracts to profiles, such that when the profile is switched on, the contract will be switched on as well.
+
+- Be able to specify the evaluation mode options that should be available for a given contract at runtime, such that the compiler can potentially optimize with the contract as a given, prevent enforcing some contracts, and so that we can prevent information leakage from some contracts while ensuring some contracts emit verbose information.
+
+- Be able to specify the exact evaluation mode of a specific contract, in such a way that we can override all but the most targeted attempts at changing it from that evaluation mode.
+
+The base idea is to allow the contract enforcement to be specified in multiple places. Contract statements have zero or more group definitions that apply to them, belong to zero or more profiles, and have zero or more mode restrictions that apply to them. The evaluation mode used is the default that the compiler specifies, overridden by any user-specified evaluation modes starting with any passed-in on the command line. If multiple user-specified evaluation modes are encountered applying to a given contract statement they are treated as defined in the chapter below.
+
+To be able to ensure that given sets of contracts are either never in enforcement mode, always in enforcement mode, never give out verbose information, or always give out verbose information, we have an attribute that allows the code author (or compiler invocation owner) to set and override evaluation mode restrictions, such that whole classes can be switched to must-enforce, while the too-expensive axiom statements inside the class are guarded with a must-not-enforce statement (which can then be set to observe or ignore, allowing users to verify axioms, while not checking the contract by default.
+
+## Short overview of evaluation modes
+
+In order for the specification below to be well understood, it is a good idea to start with a thorough treatment of contract evaluation modes.
+
+A quick survey of the contract evaluation modes shows that there are 8 theoretical combinations of the evaluation mode properties:
+
+- Checks contract 
+- Logs verbose output
+- Terminates on failure and allows optimization
+
+Taking the power set of these, we retain the following set of combined traits:
+
+1. Do not check contract, do not report violation and do not allow optimization. (Ignore)
+2. Do not check contract, but report violation. Do not allow optimization. (*)
+3. Do not check contract (but theoretically terminate if it would fail), allow optimization. (Assume)
+4. Do not check contract, report violation, and terminate. Allow optimization. (*)
+5. Check contract, do not log output, do not terminate. (*)
+6. Check contract, do not log output, terminate. (QuickEnforce)
+7. Check contract, log output, do not terminate. (Observe) 
+8. Check contract, log output, terminate. (Enforce)
+
+Two of these ask for the compiler to report violations, but not actually check whether a violation occurs. These are not physically possible, and can be excluded.
+
+A third one does verify whether a violation occurs, but then specifies that nothing should be done. This has no utility, and we discount this option for that reason.
+
+The other five have the names that we use within [P2900] for the known evaluation modes.
+
+The Assume semantic is one that we will be proposing no support for in the C++ standard. It is one that allows the user to write optimization hints in the form of contract asserts, which has no meaning related to either contract checking, safety or anything like it. It comes up in discussions regularly, and specifically in [P3100]'s framework for defining undefined behavior, and as such it's in the list of names. We will omit Assume in the rest of this paper.
+
+## Combination of multiple evaluation modes
+
+Multiple evaluation modes combine as follows:
+
+| X            | Ignore       | Observe | QuickEnforce | Enforce |
+|--------------|--------------|---------|--------------|---------|
+| Ignore       | Ignore       | Observe | QuickEnforce | Enforce |
+| Observe      | Observe      | Observe | Enforce      | Enforce |
+| QuickEnforce | QuickEnforce | Enforce | QuickEnforce | Enforce |
+| Enforce      | Enforce      | Enforce | Enforce      | Enforce |
+
+Profile enablement and evaluation modes combine as follows:
+
+| X            | Ignore       | Observe | QuickEnforce | Enforce |
+|--------------|--------------|---------|--------------|---------|
+| Disabled     | Ignore       | Observe | QuickEnforce | Enforce |
+| Enabled      | QuickEnforce | Enforce | QuickEnforce | Enforce |
+
+The rationale is that both Observe and Enforce output verbose content, and the changes in the above table make any type that has Observe or Enforce on it retain the verbose content. Both QuickEnforce and Enforce are enforcing modes, which terminate when the contract fails, and the table above makes any type that has an enforcing mode specified anywhere enforce.
+
+The only non-obvious case is where a contract is set to both Observe and QuickEnforce. In this case, it needs to output verbose information when it fails, and it needs to enforce, hence it\'s merged into Enforce.
+
+From a user perspective, this makes it so that if a user expects it to enforce in any of the places to change the setting, it will enforce, and when a user expects it to verbosely output contract violations, it will output verbose information.
+
+With regards to merging profiles and contracts, when a profile requires a check, and the user does not at any point indicate the handler to be called, we should check the contract and upon failure terminate without calling the handler. Switching between having a contract handler and not is not controllable through the profiles feature in its current design. We invite further alignment between profiles and contracts to allow the profile switching to extend to indicating whether a contract violation handler should be called.
+
+## Profiles
+
+Namespaces, classes, functions, and contract expressions can be decorated with `[[profile(name)]]` to associate all contracts that are within the entity mentioned are tied to the specific profile.
+
+In the simple case where a contract statement is controlled only through a single profile, switching the profile on will change the contract to enforce. As profiles do not by themselves imply a contract violation handler, switching on a contract with only a profile switch changes it from Ignore to QuickEnforce.
+
+## Contract groups
+
+Namespaces, classes, functions, and contract assertions can be decorated with `[[contract_group(name)]]` to associate it with a given named contract group. 
+
+In the simple case where a contract statement is controlled through a single contract group, the evaluation mode restrictions, and selected evaluation mode, are all identical to the ones specified on that group.
+
+## Evaluation mode restriction
+
+A namespace, class, function, or contract expressions can be directly decorated with `[[contract_mode(<mode>)]]` to require all contracts affected by the entity to either have a restriction on what modes can be enabled, or for a prior restriction to be forcibly lifted.
+
+The user can add a translation unit wide evaluation mode restriction using a command line flag, suggested to be `-fcontracts-mode=<mode>`. The user can add a translation unit wide contract group specific evaluation mode restriction using a command-line flag, suggested to be `-fcontracts-mode=<name>=<mode>`.
+
+The evaluation modes to be made available for a given contract assertion are considered to be the set of all evaluation modes, adjusted by evaluating the mode restrictions in order of declaration for all entities that contain the contract assertion. 
+
+The modes available are the following:
+
+- `allow_all` (adds all options back in)
+
+- `must_terminate` (removes ignore and observe)
+- `must_not_terminate` (removes enforce and quick_enforce)
+
+- `must_call_handler` (removes ignore and quick_enforce)
+- `must_not_call_handler` (removes observe and enforce)
+
+- `ignore` (removes observe, enforce, and quick_enforce)
+- `observe` (removes ignore, enforce, and quick_enforce)
+- `enforce` (removes ignore, observe, and quick_enforce)
+- `quick_enforce` (removes ignore, observe, and enforce)
+
+These groupwise match up, and replace the previous entry in the group that was set. They allow a contract to be compiled with one of 9 different sets of supported contract evaluation modes, where the user can switch at link time or load time between the elements of the set.
+
+Contract evaluation options and choices for a group or profile are specified at compile time, link time, or load time, and cannot change during program execution. The set of options cannot be widened from compile time to link time, or from link time to load time, but can be restricted further.
+
+If the set contains a single element, the compiler is encouraged to omit code to determine which evaluation mode to use.
+
+The reason for the ability to override a prior restriction is that, while in many cases we want to ensure that all contracts in a given area are set to `must_terminate` - or in some cases, set library or build-system wide - some specific contracts have to be exempt from such widely-set general choices, like axiom-style proofs that show a property that has to hold, while knowing that the check that shows the property holds is too expensive to be run. Users are of course free to require the code not to have any contract mode overrides if they want to be sure that their top-level choice percolates down to all contracts, at the expense of not being able to prevent some contracts from being run.
+
+
+## Evaluation mode restrictions
+
+
+Contract enforcement choices for a group are specified at compile time, link time or load time, and cannot change during program execution. Profile enablement follows the approach specified in the profiles papers, specifically [P3081].
+
+Contract groups or profiles specified on a namespace apply to all entities within that namespace block. 
+
+When a contract is both part of one or more profiles, and/or one or more contract groups, the contract enforcement combinations result as illustrated above. For each group or profile, the evaluation mode is initially read as "unset", and only those that are set are considered in determining the eventual contract evaluation mode. At the end of combining the evaluation modes, it is restricted by the active set of contract mode restrictions to the eventually used evaluation mode.
+
+This sounds like a complicated set of rules, but in practical use, we would typically end up with one group or one profile applying to a given contract, with that group or profile fully controlling whether a given check would invoke a handler or terminate the program.
+
+Contract groups by default follow the global contract enforcement mode selected. Compilers are recommended to compile contracts with the full set of evaluation modes available at runtime, and to set all contracts to `enforce` by default. 
+
+## Profiles versus contract groups
+
+Profiles are used to switch on or off major groups of safety-related checks. Using the changes in this paper, we can make specific contracts or sets of contracts part of a specific profile, and to allow the user to switch these contracts on or off together with the rest of the checks enabled by the profile. Typically, profiles are a "wide" type of check, similar things being verified in wildly differing translation units.
+
+Contract groups handle the other dimension of contracts being tied together. They are often used for grouping contracts that have a similar function for the user, but that can be implemented in disparate parts of a program. The user would usually switch these together to enable or disable the contract checking in a given logical part of functionality.
+
+## Overriding of contract evaluation modes
+
+The runtime exposes a function
+
+```cpp
+constexpr void get_contract_evaluation_mode(const char* group, evaluation_mode mode) noexcept;
+constexpr void get_contract_evaluation_mode(evaluation_mode mode) noexcept;
+```
+
+that provide the contract evaluation mode to be used on a given contract. The results of this may be cached, and the function should always return the same answer for a given contract assertion during a single execution of the program. These two functions are emitted as weak symbols returning the command-line configuration passed in, allowing a user reimplementation that uses arbitrarily complicated methods of deriving whether a contract should be checked, enforced, and the like. 
+
+## Keywords, attributes or annotations?
+
+There are multiple ways we could specify the contract groups and evaluation information on a language entity. Ways suggested are to have a context-sensitive keyword that applies to contract statements, to add an attribute with the equivalent context-sensitive keyword, or to use the new annotation syntax with the equivalent context-sensitive keyword.
+
+- Context-sensitive keyword: Slightly fewer tokens to type, but declarations look more like keyword soup
+- Attribute: Contracts are by design not salient to the function of a program, so all contract modifiers are not salient either, making attributes appropriate to use.
+- Annotation: This enables reflection to see the contract groups and other contract mode information.
+
+The paper authors have no strong opinion on any of these, and see them as interchangeable ways to write the same thing. We would suggest attributes, as they most closely align with how contracts work, but are easily convinced of the alternatives if a reason can be found.
+
+For contract groups, given that we expect most contracts (all?) to be logically part of a group, we can choose to have a contract group specification that reads like `pre<pointers>(x != nullptr)`. This does not extend beyond contract assertions themselves, so we would still be looking for an alternate syntax, but this shorthand seems desirable.
+
+# Examples
+
+## Code example
+
+For discussion we take an example
+
+```cpp
+namespace Poker [[contract_mode(must_terminate)]] {
+  int [[contract_group(poker)]] select_card(int* arg) 
+    pre [[profile(pointers)]] (arg != nullptr)
+    pre [[profile(ranges)]] (arg && *arg >= 0 && *arg < 52)
+    pre [[contract_group(axioms)]] [[contract_mode(may_ignore)]] (never_seen_before(arg, arg+52));
+}
+```
+
+Compiling this function with no compiler argument to override will result in both functions being compiled with a runtime selectable evaluation mode, defaulting to the compiler\'s default mode.
+
+Setting the group `poker` to Observe would switch both statements to Enforce, as it requires it to produce verbose output. Leaving the poker group unset and enabling the profile `pointers` would force the first statement to Enforce (no default specified, Unset and Enforce combine to Enforce, mode restriction leaves it there), and leave the second at Enforce (no override anywhere, so compiler default, tempered by the contract mode requirement).
+
+The second example has a contract assertion in the `axioms` group. For the developer group, this is a group that is used for contracts that knowingly cannot be run without breaking complexity guarantees, but that do logically have to hold for the function to work. In case the user suspects a given axiom is broken, they can enable this group and know that specific tasks can be done slowly, but with certainty that the axioms are still verified, and for users reading the code to understand that the axiom should hold, even if it is not actively being verified. The axiom has an override for the contract mode to it to be ignorable, such that it can still be turned off, despite being in a block of `must_terminate`.
+
+## Command line example
+
+```cpp
+-fcontracts-mode=allow_all  // exposition only, this is the normal default
+-fcontracts-mode=axiom=must_not_terminate 
+-fcontracts-mode=ip_sensitive=must_not_call_handler 
+-fcontracts-mode=safety=must_terminate
+-fcontracts-evaluation=enforce
+-fcontracts-evaluation=axiom=ignore
+-fcontracts-evaluation=safety=quick_enforce
+```
+
+With this example, we would instruct the compiler to allow all evaluation modes on contracts by default, except that axioms will be compiled without the option to terminate, safety must terminate (and the compiler is allowed to optimize with this information), and IP sensitive contracts may not call the contract violation handler and potentially emit IP sensitive information. The default evaluation mode is set to enforce (which combines with the modes to make regular contracts enforce, axioms observe, ip sensitive contracts `quick_enforce`, and safety contracts enforce), which is then overridden for the safety contracts to also `quick_enforce`, and for axioms to by default ignore. Or in table form:
+
+| Group name     | Allowed modes              | Default mode    | Compiler effect                                       |
+|---|---|---|---|
+| `default`      | `all`                      | `enforce`       | full code emitted                                     |
+| `axiom`        | `ignore`, `observe`        | `ignore`        | no terminate path emitted                             |
+| `ip_sensitive` | `ignore`, `quick_enforce`  | `quick_enforce` | no `contract_violation` objects emitted, IP protected |
+| `safety`       | `enforce`, `quick_enforce `| `quick_enforce` | compiler may optimize, guaranteed to terminate        |
+
+# Polls
+
+## Poll 1: SG21 wants to see the namespace contract attributes removed from this design
+
+Annotating on namespaces is somewhat confusing. Unlike the other three, these tend to exist in other translation units, and some TUs will import a particular header that sets an enforcement mode while others don\'t. This makes the namespace part in particular less stable to use than others. The current choice makes it at least reproducible and ddterministic with regards to header order changes, but I can understand if we prefer to remove this.
+
+## Poll 2: SG23 wants profiles and contracts to be aligned as specified in the paper above
+
+Contracts and profiles tackle a similar area, where contracts have more options specified how to handle failures. It would be better if the two function similarly and offer similar ways to change modes.
+
+## Poll 3.[1,2,3]: [SG15 / SG21 / SG23] agrees with the proposed design and would like to forward it to EWG for consideration in C++29, conditional on other SGs doing the same.
+
+After proposed design approval and before EWG will see this, wording will be added and aligned with wording experts.
+
+## Poll 4.1: EWG wants the contract groups and profiles to be annotations
+
+## Poll 4.2: EWG wants the contract groups and profiles to be attributes
+
+## Poll 4.3: EWG wants the contract groups and profiles to be context-sensitive keywords
+
+# Wording
+
+
