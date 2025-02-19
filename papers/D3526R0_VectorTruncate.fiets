@@ -3,8 +3,8 @@ Container truncation
 | Document # | D3526R0 |
 | Date | 2024-11-22 |
 | Project |	Programming Language C++ |
-| Targeted subgroups | EWGI, EWG |
-| Target release | C++29 |
+| Targeted subgroups | LEWG |
+| Target release | C++26 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
 | | Eric Fiselier <eric@efcs.ca> |
 
@@ -24,14 +24,16 @@ In the summaries of `vector`, `inplace_vector`, `list`, `forward_list`, `deque` 
     constexpr void      truncate(size_type sz) noexcept;
 ```
 
-In the corresponding explanation block following, add the following
+In the corresponding explanation blocks following, add the following
 
 ```
 void truncate(size_type sz) noexcept;
 
 expects: T is MoveInsertable into `deque`
 
-effects: Erases the last `size() - sz` elements from the sequence. If sz is not less than or equal to size(), function has no effect.
+Precondition: `sz` is less than or equal to `size()`
+
+effects: Erases the last `size() - sz` elements from the sequence.
 ```
 
 

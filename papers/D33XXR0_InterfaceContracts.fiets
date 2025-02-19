@@ -1,0 +1,226 @@
+C++ contracts on interfaces
+
+| Document number | D33XXR0 |
+| Date | 2024-06-05 |
+| Reply-to | Peter Bindels <dascandy@gmail.com> |
+| Targeted subgroups | SG21 |
+
+# Introduction
+
+There are many papers on contracts regarding virtual functions and function pointers separately. In this paper I\'ll be looking at the details around them and form a full proposal for the approach to take with them.
+
+# Prior art
+
+P2954: Contracts and virtual functions for the contracts MVP. Proposes virtual functions can only get contracts on first introduction, and overriders cannot.
+P2932: A Principled Approach to Open Design Questions for Contracts. Asserts that contracts must not be visible to concepts. Proposes contracts are not inherited to fix a defect introduced with P2954, and then proposes to disallow contracts on virtual functions for now.
+P3097: Contracts for C++: Support for Virtual Functions. Deviates from strict DbC.
+P3165: Contracts on virtual functions for the Contracts MVP. Supersedes P2954. Deviates from strict DbC.
+P3169: Inherited contracts. Checks only interface contract for calls, checks full override sequence postcondition set. Closer to traditional DbC.
+P3221: Disable pointers to contracted functions. Similar to P3250, except it fully forbids pointers to contracted functions.
+P3250: C++ contracts with regards to function pointers. Proposes to disallow capture (but to allow conversion) from the address of a function that has contracts. Only relevant to reserve space for this proposal, in case a MVP would ship before resolved.
+P3271: Function Usage Types (Contracts for Function Pointers): Introduces function usage types, which are separate from function pointers but semantically identical, which can receive contracts.
+
+# Interfaces and implementations
+
+In both the case of virtual functions and function pointers, we can identify similar patterns to do with the contracts that could apply to them. We have a first layer contract being introduced:
+
+```cpp
+struct X {
+  virtual void f() pre(a()) post(b()) = 0;
+};
+
+void (*fp)() pre(a()) post(b());
+```
+
+We shall call this the "Interface contract". This is the contract on the concrete type that we are calling, whether it\'s a type with virtual functions, or a function pointer with contracts.
+
+The implementation that we end up calling can have its own set of contracts:
+
+```cpp
+struct Y : X {
+  void f() pre(c()) post(d()) override { ... }
+};
+
+void func() pre(c()) post(d()) { ... }
+fp = &func;
+```
+
+In both cases, though, there can be more intermediate contracts along the way:
+
+```cpp
+struct Z : Y {
+  void f() pre(e()) post(f()) override { ... }
+};
+
+void (*fp2)() pre(c()) post(d());
+void func2() pre(e()) post(f()) { ... }
+fp2 = &func;
+fp = &fp2;
+```
+
+In this final example, we have the function with precontracts a(), c() and e() in order, and postcontracts f(), d() and b() in order. a() and b() are interface contracts, c() and d() are intermediate contracts, and e() and f() are implementation contracts.
+
+## Difference between virtual functions and function pointers
+
+The two have a very similar approach, as demonstrated above. The main difference lies in virtual functions being part of a known inheritance tree - at some point, a function is instantiated that knows of all contracts that lie above a given implementation. As such, the implementation of that function can assert that these contracts are indeed upheld, and its postcondition is able to check that all relevant postcontracts are valid.
+
+Function pointers, and indirectly member function pointers, do not have this benefit. This means that we have to take a separate approach to function pointers (and member function pointers) than we can do for virtual functions.
+
+# Which contracts should we be checking?
+
+In the reasonings below we first evaluate the considerations from the point of view of an inheritance tree. We\'ll subsequently investigate how the considerations change for function pointers.
+
+## Full Design-by-Contract
+
+In normal Design-by-Contract, a() would fully include c(), and c() would fully include e(). The contracts are said to "widen", where the first contract implies the other two indirectly, and where all valid function calls to the interface function are necessarily valid function calls to the implementation.
+
+Similarly, f() would fully include d(), which in turn fully includes b(). Viewed from the implementation, the contract again widens but in the other direction; we call it "narrowing" from the interface point of view. The implementation guarantees the interface and intermediate contract implicitly by guaranteeing its own postcontract.
+
+So with the full assumption that we are 100% correctly doing DbC everywhere, we can check the interface precontract and the implementation postcontract, and imply the implementation precontract and interface postcontract. We would not need to do anything but these, and by definition this is sufficient to check the contracts. This works without any change for the function pointer case.
+
+Logically, this results in the following pseudocode (borrowing slightly from P3267\'s approach 3 for the post-check entry point):
+
+```cpp
+Z::f@post-check() {
+  imply(a());
+  check(c()); // optimized out, as a() implies c()
+  imply(c()); // no effect
+  check(e()); // optimized out, as c() implies e()
+  imply(e()); // no effect
+  ...
+  check(f());
+  imply(f()); // no effect beyond removing below checks
+  check(d()); // optimized out, as f() implies d()
+  imply(d()); // no effect beyond removing below checks
+  check(b()); // optimized out, as d() implies b()
+  imply(b()); // no effect
+}
+```
+
+With an invocation like below:
+
+```cpp
+  X* x;
+  x->f();
+```
+
+resulting in code emitted like
+
+```cpp
+Z::f@post-check() {
+  imply(a());
+  ...
+  check(f());
+}
+
+  X* x;
+  check(a());
+  x->f@post-check();
+// check(b()); // optimized out, as x->f@post-check() guarantees b() is upheld
+  imply(b());
+```
+
+## Real life
+
+We however know already that full DbC is not realistic.
+
+- Developers make mistakes and will have implementation postcontracts that do not guarantee the interface postcontract, or interface precontracts that do not satisfy the implementation precontract.
+- Tools cannot be expected to fully prove subsumption between differently-written contracts, especially as they can rely on indirection through external functions, or very hard to prove mathematical conjectures.
+- Even foregoing the prior two points, in code bases that live for longer time, situations occur where fully fixing contracts to comply with DbC will end up being hard or impossible. Some contracts are in unchangeable code bases, some contracts are maintained by a team that took three weeks off etc.
+
+As such, we want to ensure that we evaluate the contracts that are logically part of the function\'s interface, while not wasting time to evaluate contracts that do not apply to this invocation of the function.
+
+We should strive to make evaluating the contracts that do comply with DbC as quick as (reasonably) possible, while giving space for contracts to change in derived classes, and for function calls to (and returns from) those functions to succeed if at no point a contract that is logically in force, is violated. To do this, we should leverage what in most compilers is done by an optimizer - to reduce redundant checks.
+
+Note that in the example above, we could evaluate the full chain a() && c() && e(), and a perfect optimizing compiler would remove the c() and e() calls, as they are subsumed by a(), which already needs to be true before evaluating c() or e(), for the whole expression to be true.Similarly, the return would evaluate f() && d() && b(), which with the same optimizer would result in just f() being checked.
+
+The question then remains is which contracts make sense to evaluate for a design that does not fully comply with the rules of DbC. At a minimum, we should check e() and f() in the implementation, since that\'s what the implementation is based on, and we should also check a() and b() at the call site, since we know that those are the preconditions and postconditions that the surrounding code is logically based on. 
+
+On entry into the function, we can imply as input the logical disjunction of the preconditions that have to have been evaluated before that point - which is `a() || c() || e()` - and in case the preconditions do DbC correctly, this will imply `e()`, making the remaining precondition check `e()` optimize out. If not all potential precondition paths guarantee `e()`, the compiler will emit a contract check for `e()`, and the implementation has its guarantees.
+
+For the return value though, we do not necessarily know anything about the contract `f()` on the implementation at the call site - the only post-contract we know is `b()`. There are two possible strategies to consider. 
+
+The first is to make the implementation check all post-contracts for potential entry points into this function, similar to the entry implication, except a conjunction. It would then assert that `f() && d() && b()`. The result of this is that, no matter which entry point is chosen, the given contract is guaranteed to have been checked before the function returns, allowing the call site to imply its interface result. For a DbC correct implementation, all contracts but f() will be optimized out and no overhead is incurred, while we still retain the ability to `imply(b())` at the call site. The total end contract for the function is equal to the combination of end contracts of each interface it could have been called through. This is the approach advocated by P3169.
+
+Taking the example from above for the first approach, we now get:
+
+```cpp
+Z::f@post-check() {
+  imply(a() || c() || e());
+  check(e()); // if the compiler can prove that a(), c() and e() all provide enough guarantee that e() holds, it can eliminate this check
+  // the check is retained if the compiler cannot prove it.
+  imply(e());
+  ...
+  check(f() && d() && b()); // usually, d() and b() would be implied from f(), so this would boil down to check(f()).
+  imply(f() && d() && b());
+}
+
+  X* x;
+  check(a());
+  x->f@post-check();
+  check(b()); // optimized out, as x->f@post-check() guarantees b() is upheld
+  imply(b());
+```
+
+The second is to only assert the implementation contract `f()`, leaving the call site without any guarantees on its post-contract, requiring it to fully check the `b()` contract, in a way that does not lend itself to optimizing out. This is the approach advocated by P3097 and P3165.
+
+```cpp
+Z::f@post-check() {
+  imply(a() || c() || e());
+  check(e()); // if the compiler can prove that a(), c() and e() all provide enough guarantee that e() holds, it can eliminate this check
+  // the check is retained if the compiler cannot prove it.
+  imply(e());
+  ...
+  check(f());
+  imply(f());
+}
+
+  X* x;
+  check(a());
+  x->f@post-check();
+  check(b()); // cannot be optimized out
+  imply(b());
+```
+
+The difference here lies in whether a function implementation satisfies the potential conditions of all viable entry points, or whether a given evaluation of a function should only be expected to satisfy the conditions of the specific function invocation. On entry, the optimizer can use the knowledge that we came through *a* valid interface and use that to optimize the check of our implementation contract regardless of this choice - but for the postcontract, it matters whether we consider only the specific return path, or whether we consider all potential return paths.
+
+This represents an interesting choice. When a function is implemented, does it satisfy all the interfaces through which it is reachable all the time, or is an interface only satisfied / satisfiable when it is called through that specific interface? P3097 and P3165 argue for the latter, while P3169 argues for the former.
+
+## Function pointers
+
+When creating a function pointer from a function or member function, we return a function pointer (member function pointer) to that function, with the contracts as specified on the function taken as the interface contracts on the function pointer.
+
+It is tempting to consider allowing function pointer conversions. However, we cannot allow fully generic contract-changing function pointer conversions. In the case that a function pointer is converted to one with stronger or same pre-contracts, and weaker or same post-contracts, no problem occurs, and the conversion can be allowed. Proving this in general is hard or impossible, and requiring compilers to do this is not feasible, which makes this an unrealistic thing to require.
+
+In the other case, where function pre-contracts may be weaker, or post-contracts may be stronger, there would need to be a thunk or stub function generated that handles the specific added contracts, asserting the missing pre-contracts or post-contracts. Given a function pointer value only known at runtime, it is not possible to generate such a stub at compile time. Generating it at runtime is possible, but there is no space where we would know the function pointer to that thunk goes out of scope, so we could never free it. Requiring infinite memory for reliable software is a no-go, so we cannot allow general function pointer conversions either.
+
+So we know that we can only do two things with a function that has a contract. Either we provide the ability to take the address of the function beyond its contract check (leaving the imply), or we only provide the ability to take the address of a function before its contract check (effectively "removing" the contracts from the function pointer type).
+
+If we do have a function pointer to the function beyond the contract check, we can only assign it to the exact same type. Given the inability of us to require a compiler to check "similarity" between contracts, we have to assume that all preconditions are unchecked if converted, and inversely we cannot guarantee any postconditions that the type can retain. The result of any non-identical conversion then, must be a function pointer without any postcontracts, and does not meaningfully have any precontracts we can check before the call.
+
+This leaves us with the ability to either have a function pointer type with contracts that propagates the exact contract, or one without contracts. The current status quo is the latter, so we need to understand what the benefits are of adding this complexity, and what its drawbacks are.
+
+The benefits of contracts on function pointers are that we are able to optimize code across translation units with the full knowledge of the contracts guaranteed by indirect function calls.
+
+The drawbacks of contracts on function pointers however are much more numerous.
+
+First, function pointers with contracts need to have an ability to, while not at compile time knowing the source of the function pointer, convert it to a function pointer without contracts. This implies a runtime conversion with platform-specific methods.
+
+Second, most places that use function pointers tend to be either in a legacy context, where the contracts need to be stripped off to communicate with existing C++, C, Java or other code, or in a template context, where the contracts are available to the optimizer even if we do not expose them on the function pointer. The amount of code that would benefit from having contracts on function pointers is small.
+
+Third, it violates one of our primary tenets. Function pointers with contracts are noticeably different from regular functions.
+
+Fourth, it is not a very necessary complexity to take on. For any given function with contracts where the contracts are not as desired, a wrapper lambda can be used to convert it into a type with the desired contract, which provides all the hooks that we would need to implement function pointers correctly, in a standard C++ way.
+
+As such, I think we should consider function pointer and member function pointer types to always represent a pointer without any contracts.  This results in places that do end up being able to inline the function pointer (for example, in some template situations) to be able to optimize out the contracts where relevant anyway. In all cases, the contracts for the function in question are guaranteed.
+
+
+
+
+
+
+
+
+
+
+

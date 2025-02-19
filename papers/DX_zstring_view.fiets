@@ -1,0 +1,76 @@
+std::zstring_view
+
+| Document # | DxxxxR0 |
+| Date | 2025-02-19 |
+| Targeted subgroups | EWG, CWG |
+| Ship vehicle | C++29 |
+| Reply-to | Peter Bindels <dascandy@gmail.com> |
+| | Hana Dusíková <hanicka@hanicka.net> |
+
+# Abstract
+
+Starting in the original paper from Sept 2012 - Feb 2014 introducing string_view, the idea of zstring_view is already present [N3921](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3921.html#null-termination):
+
+> Another option would be to define a separate zstring_view class to represent null-terminated strings and let it decay to string_view when necessary. That's plausible but not part of this proposal.
+
+An attempt was made in Feb 2019 to concretely propose the type (renamed to cstring_view) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space.". It should be noted that this discussion was in LEWGI, and was not taken by full LEWG.
+
+However, in 2024 we get [P3081 Core safety profiles for C++26](https://wg21.link/p3081), which contains as an aside a null-terminated `zstring_view` in chapter 8, noting:
+
+> "This is one of the commonly-requested features from the [GSL] library that does not yet have a std:: equivalent. It was specifically requested by several reviewers of this work.". 
+
+During the discussion, it was made clear that this is not a type that should be happenstance introduced as part of a different topic entirely, but that the type itself was not the reason to vote against at that time. P3081 didn't pass anyway, making that point moot as well.
+
+We also have [P2996 Reflection for C++26](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r9.html), which in its specification of functions returning a `string_view` or `u8string_view` tries its best to say it's actually supposed to be a `zstring_view`, except without naming the type for existential reasons:
+
+> "Any function in namespace std::meta that whose return type is string_view or u8string_view returns an object V such that V.data()[V.size()] == '\0'."
+
+As such, we do believe that there is both space for such a type, and a desire from multiple angles to have it defined in the standard library.
+
+# Reasons to have the type
+
+Many functions right now, both C++ standard functions, operating system calls and third-party library calls, are only defined on null-terminated C-style strings. Others are defined in terms of the wording of the original functions that required null termination, and require null termination as well, even if only by accident. For all of these functions, string_view ends up being a type that in all cases requires a full copy.
+
+String_views tend to start their life coming from a string literal or from a type that owns its internal buffer, often `std::string`. Both of these are places that can always create a zstring_view instead, as they both know their data is inherently null terminated.
+
+During the processing of these string_views, they are very often just passed along as a non-owning string type all the way to a place that calls functions passing them along as data. Some of these functions, like `std::ofstream::write`, do not rely on the null terminator, but some of them like `std::ofstream::ofstream` that do. Using `string_view` as the intermediate type loses the knowledge that a null terminator is already guaranteed to be present, requiring the developer to somehow copy the string and add a null terminator, or alternatively to forego type safety and assume that it must've just been `string_view`'s lack of ability to carry the knowledge but that it's always there. [StackOverflow question](https://stackoverflow.com/questions/58524805/is-there-a-way-to-create-a-stringstream-from-a-string-view-without-copying-data). 
+
+These problems are visible enough that we have targeted patches for specific instances of this problem in the standard - [P2495](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2495r0.pdf) attempts to directly patch this specific example. The solution bypasses that the problem is that we're missing an unbroken type-safe chain of knowledge that the value being passed is or is not null-terminated.
+
+The type effectively fills out the design space that exists around strings within C++. We started off with `std::string` as an owning string type, ambiguously being specified as having a null terminator or not, clarified in C++11 to definitely *have* a null terminator. C++14 added `std::string_view` to that set, offering a non-null-terminated non-owning string type. The type itself raises the question, should we add a non-null-terminated owning string type, and/or a null-terminated non-owning string type? We're proposing the last of these, leaving only the non-null-terminated owning string type as not present. We believe there is no situation to be written where a non-null-terminated owning string type would have a measurable benefit over the null-terminated owning string type that we have, and as such it is not worth the added complexity.
+
+Without them we retain the question we had before - `const char*`, `const std::string&` or `string_view`? The first loses lots of type safety, the second requires it to be a `std::string` but retains null-termination knowledge, the last offers the ability to send any string type constructible to a string_view, but loses any knowledge of null termination. For the common case of passing along "some string input" to a function that ends up requiring null termination, the proposed `zstring_view` is the only type that properly captures it.
+
+# Reasons not to have the type
+
+In an ideal world, we could actually fix the operating systems and third-party libraries to accept pointer-and-size strings in all places, removing the need for null termination to exist, and for null termination propagation to be relevant. Sometimes, in particular from environments where this may not be unrealistic in a subset, the argument is voiced that `zstring_view` does not offer any benefits.
+
+Adding the type complicates the type system around strings by having more options for string types. This is not as much of an argument as it seems, since for each site a single type is the most appropriate, and the only places that would differ are those where the difference can make a meaningful performance impact - ie, the exact kind of tight loop where the type is useful for being able to make the difference.
+
+# Subtle details
+
+## zstring_view and string_view relation
+
+Initially we expected that zstring_view may be implementable in terms of string_view. This is not actually true; in particular it is not well-formed to use string_view's operator= to assign a non-null-terminated string_view to a zstring_view. As such, there can not be an inheritance relation between the two.
+
+zstring_view is transparently convertible to a string_view. For the conversion operator, there is no operator= that could affect the original zstring_view, and as such it is a correct change to do. It in particular makes it so that any use of zstring_view in places where string_view is expected or desired will work without additional work.
+
+## Member functions on `string_view` that return a `string_view`
+
+In some cases the functions can be replicated on zstring_view with the return type being a zstring_view, while in some cases the return type loses the ability to guarantee null termination, and should still return a string_view. The types are somewhat entangled. 
+
+### `substr`
+
+The `substr` function is changed from a single function with a default argument, to two functions, one with one and one with two arguments. The one-argument `substr` always retains the end (identical to `string_view`'s `substr`) and returns a `zstring_view`; the two-argument `substr` at least in a conceptual sense chops off at least the null terminator from the end, and should always return a `string_view`.
+
+### `remove_prefix`
+
+`remove_prefix` is identical to `substr` with one parameter and should return a zstring_view, as it upholds the guarantee of null termination.
+
+### `remove_suffix`
+
+`remove_suffix` is implementable with `substr` with two parameters, but exposes a more limited interface, as it always retains the start. It always removes the null termination guarantee and should return a `string_view`.
+
+# Wording
+
+

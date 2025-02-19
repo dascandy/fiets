@@ -55,7 +55,7 @@ std::string as_html(const References&) {
   return accum;
 }
 
-std::string as_id(std::string_view name) {
+static std::string as_id(std::string_view name) {
   std::string id(name);
   size_t pos = id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
   while (pos != std::string::npos) {
@@ -75,7 +75,7 @@ std::string as_html_toc(const Chapter& chap, std::string prefix, size_t size) {
   return accum;
 }
 
-std::string as_html(const TOC& i) {
+std::string as_html(const TOC&) {
   std::string accum;
   accum += "<h1 class=\"toc\">Table of contents</h1>";
   for (size_t n = 0; n < doc->subchapters.size(); n++) {
@@ -118,7 +118,7 @@ std::string as_html(const OrderedList& l) {
   return accum + "</ol>";
 }
 
-std::string as_html(const IdentifierDefinition& l) {
+std::string as_html(const IdentifierDefinition&) {
    return "TODO";
 }
 

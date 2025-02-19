@@ -71,11 +71,17 @@ Text parseText(std::string_view line, Document& doc) {
         break;
       case '\'':
       {
-        if (!accum.empty()) text.seq.push_back(accum);
-        accum = "";
-        size_t end = line.find("'", offset + 1);
-        text.seq.push_back(Identifier{line.substr(offset + 1, end - offset - 1)});
-        offset = end + 1;
+        if (!iswhite(line[offset-1]) && !iswhite(line[offset+1])) {
+          // Apostrophe inside a word, ignore
+          accum += '\'';
+          offset++;
+        } else {
+          if (!accum.empty()) text.seq.push_back(accum);
+          accum = "";
+          size_t end = line.find("'", offset + 1);
+          text.seq.push_back(Identifier{line.substr(offset + 1, end - offset - 1)});
+          offset = end + 1;
+        }
       }
         break;
       case '[':
@@ -122,6 +128,7 @@ Document parse(std::string_view file) {
   } state = Toplevel;
   for (auto& line : split(file, "\n")) {
     lineNumber++;
+    printf("line %zu\n", lineNumber);
     if (lineNumber == 1) {
       doc.title = line;
       continue;
