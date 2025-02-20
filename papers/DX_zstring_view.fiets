@@ -55,6 +55,16 @@ Initially we expected that zstring_view may be implementable in terms of string_
 
 zstring_view is transparently convertible to a string_view. For the conversion operator, there is no operator= that could affect the original zstring_view, and as such it is a correct change to do. It in particular makes it so that any use of zstring_view in places where string_view is expected or desired will work without additional work.
 
+This brings into reality an overload ambiguity:
+
+```
+  void handle(string_view v);
+  void handle(zstring_view v);
+  handle("Hello World!");
+```
+
+This is now an ambiguous function call. It is not a new problem; https://godbolt.org/z/c31e31fKW shows that the exact same problem already happens with regular `std::string` and `std::string_view`. The reason is somewhat fundamental; all three types model the concept "string" and *are* ambiguous. The user should be clear about which properties of string it's expecting. Adding this new type only adds to the vocabulary the option to say "non-owning null-terminated", giving the user better choices rather than complicating it.
+
 ## Member functions on `string_view` that return a `string_view`
 
 In some cases the functions can be replicated on zstring_view with the return type being a zstring_view, while in some cases the return type loses the ability to guarantee null termination, and should still return a string_view. The types are somewhat entangled. 
