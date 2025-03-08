@@ -185,9 +185,8 @@ namespace std {
     constexpr bool operator==(basic_zstring_view<charT, traits> x,
                               type_identity_t<basic_zstring_view<charT, traits>> y) noexcept;
   template<class charT, class traits>
-    constexpr see below operator<=>(basic_zstring_view<charT, traits> x,
-                                    type_identity_t<basic_zstring_view<charT,
-                                                    traits>> y) noexcept;
+    constexpr  operator<=>(basic_zstring_view<charT, traits> x,
+                              type_identity_t<basic_zstring_view<charT, traits>> y) noexcept;
 
   // [zstring.view.io], inserters and extractors
   template<class charT, class traits>
