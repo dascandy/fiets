@@ -71,7 +71,7 @@ Text parseText(std::string_view line, Document& doc) {
         break;
       case '\'':
       {
-        if (!iswhite(line[offset-1]) && !iswhite(line[offset+1])) {
+        if (!std::isspace(line[offset-1]) && !std::isspace(line[offset+1])) {
           // Apostrophe inside a word, ignore
           accum += '\'';
           offset++;

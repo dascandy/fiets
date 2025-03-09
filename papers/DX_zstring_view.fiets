@@ -14,21 +14,11 @@ We propose a standard string view type that provides a view of a null-terminated
 
 # Introduction
 
-C++17 introduced `std::string_view`, a non-owning view of a continuous sequence of characters. It is cheap to
-use, offers fast operations, and replaced most uses of `const std::string&` or `const char*` as function parameters.
-The utility and interface of string views as well as the benefits of not having to do unnecessary `strlen` calculations
-on C-style strings makes string view types highly desirable for working with strings in C++.
+C++17 introduced `std::string_view`, a non-owning view of a continuous sequence of characters. It is cheap to use, offers fast operations, and replaced most uses of `const std::string&` or `const char*` as function parameters.  The utility and interface of string views as well as the benefits of not having to do unnecessary `strlen` calculations on C-style strings makes string view types highly desirable for working with strings in C++.
 
-Unlike `const std::string&` and `const char*`, `std::string_view` is not null-terminated which is important for fast and
-cheap substring operations. However, this means `std::string_view` is not a suitable replacement for either of the two
-aforementioned types whenever a null-terminated C-style string is needed. While most C++ code mostly interfaces with C++
-code, it is not uncommon to need to use operating system calls, C interfaces, third-party library APIs, or even C++
-standard library APIs which require null-terminated strings. Because of a lack of a desirable option for passing
-non-owned null-terminated strings, `std::string_view` parameters are none the less sometimes used today in cases where
-null-terminated strings are needed. Using `std::string_view::data` in this way is, needless to say, very bug-prone.
+Unlike `const std::string&` and `const char*`, `std::string_view` is not null-terminated which is important for fast and cheap substring operations. However, this means `std::string_view` is not a suitable replacement for either of the two aforementioned types whenever a null-terminated C-style string is needed. While most C++ code mostly interfaces with C++ code, it is not uncommon to need to use operating system calls, C interfaces, third-party library APIs, or even C++ standard library APIs which require null-terminated strings. Because of a lack of a desirable option for passing non-owned null-terminated strings, `std::string_view` parameters are none the less sometimes used today in cases where null-terminated strings are needed. Using `std::string_view::data` in this way is, needless to say, very bug-prone.
 
-For this reason, many C++ developers use custom `zstring_view` or `cstring_view` types which are guaranteed to be
-null-terminated. We propose standardizing this utility.
+For this reason, many C++ developers use custom `zstring_view` or `cstring_view` types which are guaranteed to be null-terminated. We propose standardizing this utility.
 
 # Previous Papers
 
@@ -122,9 +112,7 @@ template<class R>
 constexpr explicit basic_string_view(R&& r);
 ```
 
-All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be
-inadvertently misused. We propose offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1)
-constructor but omitting the iterator and range constructors.
+All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be inadvertently misused. We propose offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1) constructor but omitting the iterator and range constructors.
 
 ## Member functions on `string_view` that return a `string_view`
 

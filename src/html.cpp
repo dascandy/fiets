@@ -15,7 +15,7 @@ std::string as_html(const Deletion& i) {
 }
 
 std::string as_html(const Reference& i) {
-  return "<a title=\"" + doc->references[i.index-1].name + "\" href=\"#ref-" + std::to_string(i.index) + "\">[" + std::to_string(i.index) + "]</a>";
+  return "<a title=\"" + doc->references[i.index-1].name + "\" href=\"#ref-" + std::to_string(i.index) + "\">" + doc->references[i.index-1].name + "</a>";
 }
 
 std::string as_html(const Quote& i) {
