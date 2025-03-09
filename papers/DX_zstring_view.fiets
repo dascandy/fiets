@@ -2,28 +2,51 @@ std::zstring_view
 
 | Document # | DxxxxR0 |
 | Date | 2025-02-19 |
-| Targeted subgroups | EWG, CWG |
+| Targeted subgroups | LEWGI |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
 | | Hana Dusíková <hanicka@hanicka.net> |
+| | Jeremy Rifkin <jeremy@rifkin.dev> |
 
 # Abstract
+
+We propose a standard string view type that provides a view of a null-terminated string.
+
+# Introduction
+
+C++17 introduced `std::string_view`, a non-owning view of a continuous sequence of characters. It is cheap to
+use, offers fast operations, and replaced most uses of `const std::string&` or `const char*` as function parameters.
+The utility and interface of string views as well as the benefits of not having to do unnecessary `strlen` calculations
+on C-style strings makes string view types highly desirable for working with strings in C++.
+
+Unlike `const std::string&` and `const char*`, `std::string_view` is not null-terminated which is important for fast and
+cheap substring operations. However, this means `std::string_view` is not a suitable replacement for either of the two
+aforementioned types whenever a null-terminated C-style string is needed. While most C++ code mostly interfaces with C++
+code, it is not uncommon to need to use operating system calls, C interfaces, third-party library APIs, or even C++
+standard library APIs which require null-terminated strings. Because of a lack of a desirable option for passing
+non-owned null-terminated strings, `std::string_view` parameters are none the less sometimes used today in cases where
+null-terminated strings are needed. Using `std::string_view::data` in this way is, needless to say, very bug-prone.
+
+For this reason, many C++ developers use custom `zstring_view` or `cstring_view` types which are guaranteed to be
+null-terminated. We propose standardizing this utility.
+
+# Previous Papers
 
 Starting in the original paper from Sept 2012 - Feb 2014 introducing string_view, the idea of zstring_view is already present [N3921](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3921.html#null-termination):
 
 > Another option would be to define a separate zstring_view class to represent null-terminated strings and let it decay to string_view when necessary. That's plausible but not part of this proposal.
 
-An attempt was made in Feb 2019 to concretely propose the type (renamed to cstring_view) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space.". It should be noted that this discussion was in LEWGI, and was not taken by full LEWG.
+An attempt was made in Feb 2019 to concretely propose the type (renamed to cstring_view) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space." It should be noted that this discussion was in LEWGI, and was not taken by full LEWG. It is also worth noting that contracts were briefly contemplated in the minutes as a way of addressing the problem, however, contracts can't check the null char safely as it's not part of the view. Similarly other runtime checks for string view null-termination are off the table.
 
 However, in 2024 we get [P3081 Core safety profiles for C++26](https://wg21.link/p3081), which contains as an aside a null-terminated `zstring_view` in chapter 8, noting:
 
-> "This is one of the commonly-requested features from the [GSL] library that does not yet have a std:: equivalent. It was specifically requested by several reviewers of this work.". 
+> This is one of the commonly-requested features from the [GSL] library that does not yet have a std:: equivalent. It was specifically requested by several reviewers of this work.
 
-During the discussion, it was made clear that this is not a type that should be happenstance introduced as part of a different topic entirely, but that the type itself was not the reason to vote against at that time. P3081 didn't pass anyway, making that point moot as well.
+During the discussion, it was made clear that this is not a type that should be happenstance introduced as part of a different topic entirely, but that the type itself was not the reason to vote against at that time. P3081 didn't pass anyway, making that point moot, but it stands as another example of the utility being seen as desirable.
 
 We also have [P2996 Reflection for C++26](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r9.html), which in its specification of functions returning a `string_view` or `u8string_view` tries its best to say it's actually supposed to be a `zstring_view`, except without naming the type for existential reasons:
 
-> "Any function in namespace std::meta that whose return type is string_view or u8string_view returns an object V such that V.data()[V.size()] == '\0'."
+> Any function in namespace std::meta that whose return type is string_view or u8string_view returns an object V such that V.data()[V.size()] == '\0'.
 
 As such, we do believe that there is both space for such a type, and a desire from multiple angles to have it defined in the standard library.
 
@@ -33,13 +56,34 @@ Many functions right now, both C++ standard functions, operating system calls an
 
 String_views tend to start their life coming from a string literal or from a type that owns its internal buffer, often `std::string`. Both of these are places that can always create a zstring_view instead, as they both know their data is inherently null terminated.
 
-During the processing of these string_views, they are very often just passed along as a non-owning string type all the way to a place that calls functions passing them along as data. Some of these functions, like `std::ofstream::write`, do not rely on the null terminator, but some of them like `std::ofstream::ofstream` that do. Using `string_view` as the intermediate type loses the knowledge that a null terminator is already guaranteed to be present, requiring the developer to somehow copy the string and add a null terminator, or alternatively to forego type safety and assume that it must've just been `string_view`'s lack of ability to carry the knowledge but that it's always there. [StackOverflow question](https://stackoverflow.com/questions/58524805/is-there-a-way-to-create-a-stringstream-from-a-string-view-without-copying-data). 
+During the processing of these string_views, they are very often just passed along as a non-owning string type all the way to a place that calls functions passing them along as data. Some of these functions, like `std::ofstream::write`, do not rely on the null terminator, but some of them like `std::ofstream::ofstream` that do. Using `string_view` as the intermediate type loses the knowledge that a null terminator is already guaranteed to be present, requiring the developer to somehow copy the string and add a null terminator, or alternatively to forego safety and assume that they have been given a `string_view` that is really null-terminated. [StackOverflow question](https://stackoverflow.com/questions/58524805/is-there-a-way-to-create-a-stringstream-from-a-string-view-without-copying-data).
+
+We do not have to look far for examples of `std::string_view` being used in bug-prone ways with APIs expecting null-terminators. Searching `/\.data\(\)/ string_view language:c++ -is:fork` on GitHub code search turns up two examples on the first page:
+
+From `surge-synthesizer/shortcircuit-xt` https://github.com/surge-synthesizer/shortcircuit-xt/blob/ba6ea3a2e703e4fa0ed069427aa42b668699b624/libs/md5sum/demo.cc#L37
+
+```cpp
+std::optional<std::string> hash_file(const std::string_view &file_name) {
+    auto fd = open(file_name.data(), O_RDONLY);
+    ...
+```
+
+From `VisualGMQ/gmq_header` https://github.com/VisualGMQ/gmq_header/blob/cbc2853f391acc51ddd25a50d567cac404776413/log.hpp#L66
+
+```cpp
+    void log(Level level, std::string_view funcName, std::string_view filename, unsigned int line, Args&&... args) {
+        if (level <= level_) {
+            printf("[%s][%s][%s][%u]", Level2Str(level).data(), filename.data(), funcName.data(), line);
+            ...
+```
+
+These two examples could be argued to be bad code or misuses of `std::string_view`, however, the fact that they are written reflects the desire for the ability to use string view types in such cases.
 
 These problems are visible enough that we have targeted patches for specific instances of this problem in the standard - [P2495](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2495r0.pdf) attempts to directly patch this specific example. The solution bypasses that the problem is that we're missing an unbroken type-safe chain of knowledge that the value being passed is or is not null-terminated.
 
 The type effectively fills out the design space that exists around strings within C++. We started off with `std::string` as an owning string type, ambiguously being specified as having a null terminator or not, clarified in C++11 to definitely *have* a null terminator. C++14 added `std::string_view` to that set, offering a non-null-terminated non-owning string type. The type itself raises the question, should we add a non-null-terminated owning string type, and/or a null-terminated non-owning string type? We're proposing the last of these, leaving only the non-null-terminated owning string type as not present. We believe there is no situation to be written where a non-null-terminated owning string type would have a measurable benefit over the null-terminated owning string type that we have, and as such it is not worth the added complexity.
 
-Without them we retain the question we had before - `const char*`, `const std::string&` or `string_view`? The first loses lots of type safety, the second requires it to be a `std::string` but retains null-termination knowledge, the last offers the ability to send any string type constructible to a string_view, but loses any knowledge of null termination. For the common case of passing along "some string input" to a function that ends up requiring null termination, the proposed `zstring_view` is the only type that properly captures it.
+Without them we retain the question we had before - `const char*`, `const std::string&` or `string_view`? The first loses lots of type safety and potentially requires redundant `strlen` computation elsewhere in the software, the second requires it to be a `std::string` but retains null-termination knowledge, the last offers the ability to send any string type constructible to a string_view, but loses any knowledge of null termination. For the common case of passing along "some string input" to a function that ends up requiring null termination, the proposed `zstring_view` is the only type that properly captures it.
 
 # Reasons not to have the type
 
@@ -65,9 +109,26 @@ This brings into reality an overload ambiguity:
 
 This is now an ambiguous function call. It is not a new problem; https://godbolt.org/z/c31e31fKW shows that the exact same problem already happens with regular `std::string` and `std::string_view`. The reason is somewhat fundamental; all three types model the concept "string" and *are* ambiguous. The user should be clear about which properties of string it's expecting. Adding this new type only adds to the vocabulary the option to say "non-owning null-terminated", giving the user better choices rather than complicating it.
 
+## Construction
+
+`std::basic_string_view` offers a handfull of constructors:
+
+```cpp
+constexpr basic_string_view(const charT* str);
+constexpr basic_string_view(const charT* str, size_type len);
+template<class It, class End>
+constexpr basic_string_view(It begin, End end);
+template<class R>
+constexpr explicit basic_string_view(R&& r);
+```
+
+All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be
+inadvertently misused. We propose offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1)
+constructor but omitting the iterator and range constructors.
+
 ## Member functions on `string_view` that return a `string_view`
 
-In some cases the functions can be replicated on zstring_view with the return type being a zstring_view, while in some cases the return type loses the ability to guarantee null termination, and should still return a string_view. The types are somewhat entangled. 
+In some cases the functions can be replicated on zstring_view with the return type being a zstring_view, while in some cases the return type loses the ability to guarantee null termination, and should still return a string_view. The types are somewhat entangled.
 
 ### `substr`
 
@@ -81,6 +142,227 @@ The `substr` function is changed from a single function with a default argument,
 
 `remove_suffix` is implementable with `substr` with two parameters, but exposes a more limited interface, as it always retains the start. It always removes the null termination guarantee and should return a `string_view`.
 
+# Bikeshedding
+
+Null-terminated string view types are typically named `zstring_view` (N3921, P3081, GSL) or `cstring_view` (P1402). `cstring_view` follows the `std::string::c_str()` nomenclature while `zstring_view` has some establishment and recognizability.
+
+Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing).
+
+# Reference Implementation
+
+A reference implementation is at https://github.com/jeremy-rifkin/zstring_view.
+
 # Wording
 
+Wording is relative to [N4950](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/n4950.pdf) and borrows extensively from existing wording.
 
+## Zstring View Classes [zstring.view]
+
+### General [zstring.view.general]
+
+The class template basic_zstring_view describes an object that can refer to a constant contiguous sequence of char-like ([strings.general]) objects with the first element of the sequence at position zero. In the rest of [string.view], the type of the char-like objects held in a basic_string_view object is designated by charT.
+
+In all cases, `[data(), data() + size()]` is a valid range and `data() + size()` points at an object with value `charT()` (a "null terminator").
+
+[Note 1: `basic_zstring_view<charT, ...>` is primarily useful when working with C APIs which expect null terminated strings. - end note]
+
+TODO: Add a note like https://eel.is/c++draft/string.view#general-2 and / or update that note?
+
+#### Header `<zstring_view>` synopsis [zstring.view.synop]
+
+```cpp
+// mostly freestanding
+#include <compare>              // see [compare.syn]
+
+namespace std {
+  // [zstring.view.template], class template basic_zstring_view
+  template<class charT, class traits = char_traits<charT>>
+  class basic_zstring_view;                                              // partially freestanding
+
+  template<class charT, class traits>
+    constexpr bool ranges::enable_view<basic_zstring_view<charT, traits>> = true;
+  template<class charT, class traits>
+    constexpr bool ranges::enable_borrowed_range<basic_zstring_view<charT, traits>> = true;
+
+  // [zstring.view.comparison], non-member comparison functions
+  template<class charT, class traits>
+    constexpr bool operator==(basic_zstring_view<charT, traits> x,
+                              type_identity_t<basic_zstring_view<charT, traits>> y) noexcept;
+  template<class charT, class traits>
+    constexpr /* see below */ operator<=>(basic_zstring_view<charT, traits> x,
+                              type_identity_t<basic_zstring_view<charT, traits>> y) noexcept;
+
+  // [zstring.view.io], inserters and extractors
+  template<class charT, class traits>
+    basic_ostream<charT, traits>&
+      operator<<(basic_ostream<charT, traits>& os,
+                 basic_zstring_view<charT, traits> str);                 // hosted
+
+  // basic_zstring_view typedef-names
+  using zstring_view    = basic_zstring_view<char>;
+  using u8zstring_view  = basic_zstring_view<char8_t>;
+  using u16zstring_view = basic_zstring_view<char16_t>;
+  using u32zstring_view = basic_zstring_view<char32_t>;
+  using wzstring_view   = basic_zstring_view<wchar_t>;
+
+  // [zstring.view.hash], hash support
+  template<class T> struct hash;
+  template<> struct hash<zstring_view>;
+  template<> struct hash<u8zstring_view>;
+  template<> struct hash<u16zstring_view>;
+  template<> struct hash<u32zstring_view>;
+  template<> struct hash<wzstring_view>;
+
+  inline namespace literals {
+    inline namespace zstring_view_literals {
+      // [zstring.view.literals], suffix for basic_zstring_view literals
+      constexpr zstring_view    operator""zsv(const char* str, size_t len) noexcept;
+      constexpr u8zstring_view  operator""zsv(const char8_t* str, size_t len) noexcept;
+      constexpr u16zstring_view operator""zsv(const char16_t* str, size_t len) noexcept;
+      constexpr u32zstring_view operator""zsv(const char32_t* str, size_t len) noexcept;
+      constexpr wzstring_view   operator""zsv(const wchar_t* str, size_t len) noexcept;
+    }
+  }
+}
+```
+
+### Class template basic_zstring_view [zstring.view.template]
+
+### General [zstring.view.template.general]
+
+```cpp
+namespace std {
+  template<class charT, class traits = char_traits<charT>>
+  class basic_zstring_view {
+  public:
+    // types
+    using traits_type            = traits;
+    using value_type             = charT;
+    using pointer                = value_type*;
+    using const_pointer          = const value_type*;
+    using reference              = value_type&;
+    using const_reference        = const value_type&;
+    using const_iterator         = implementation-defined; // see [zstring.view.iterators]
+    using iterator               = const_iterator;
+    using const_reverse_iterator = reverse_iterator<const_iterator>;
+    using reverse_iterator       = const_reverse_iterator;
+    using size_type              = size_t;
+    using difference_type        = ptrdiff_t;
+    static constexpr size_type npos = size_type(-1);
+
+    // [zstring.view.cons], construction and assignment
+    constexpr basic_zstring_view() noexcept;
+    constexpr basic_zstring_view(const basic_zstring_view&) noexcept = default;
+    constexpr basic_zstring_view& operator=(const basic_zstring_view&) noexcept = default;
+    constexpr basic_zstring_view(const charT* str);
+    constexpr basic_string_view(const charT* str, size_type len);
+    basic_zstring_view(nullptr_t) = delete;
+
+    // [zstring.view.iterators], iterator support
+    constexpr const_iterator begin() const noexcept;
+    constexpr const_iterator end() const noexcept;
+    constexpr const_iterator cbegin() const noexcept;
+    constexpr const_iterator cend() const noexcept;
+    constexpr const_reverse_iterator rbegin() const noexcept;
+    constexpr const_reverse_iterator rend() const noexcept;
+    constexpr const_reverse_iterator crbegin() const noexcept;
+    constexpr const_reverse_iterator crend() const noexcept;
+
+    // [zstring.view.capacity], capacity
+    constexpr size_type size() const noexcept;
+    constexpr size_type length() const noexcept;
+    constexpr size_type max_size() const noexcept;
+    [[nodiscard]] constexpr bool empty() const noexcept;
+
+    // [zstring.view.access], element access
+    constexpr const_reference operator[](size_type pos) const;
+    constexpr const_reference at(size_type pos) const;
+    constexpr const_reference front() const;
+    constexpr const_reference back() const;
+    constexpr const_pointer data() const noexcept;
+    constexpr const_pointer c_str() const noexcept;
+
+    operator basic_string_view<charT, traits>() const noexcept;
+
+    // [zstring.view.modifiers], modifiers
+    constexpr void remove_prefix(size_type n);
+    constexpr void swap(basic_zstring_view& s) noexcept;
+
+    // [zstring.view.ops], zstring operations
+    constexpr size_type copy(charT* s, size_type n, size_type pos = 0) const;
+
+    constexpr basic_string_view<charT, traits> substr(size_type pos = 0, size_type n = npos) const;
+
+    constexpr int compare(basic_string_view<charT, traits> s) const noexcept;
+    constexpr int compare(size_type pos1, size_type n1, basic_zstring_view s) const;
+    constexpr int compare(size_type pos1, size_type n1, basic_zstring_view s,
+                          size_type pos2, size_type n2) const;
+    constexpr int compare(const charT* s) const;
+    constexpr int compare(size_type pos1, size_type n1, const charT* s) const;
+    constexpr int compare(size_type pos1, size_type n1, const charT* s, size_type n2) const;
+
+    constexpr bool starts_with(basic_string_view<charT, traits> x) const noexcept;
+    constexpr bool starts_with(charT x) const noexcept;
+    constexpr bool starts_with(const charT* x) const;
+    constexpr bool ends_with(basic_string_view<charT, traits> x) const noexcept;
+    constexpr bool ends_with(charT x) const noexcept;
+    constexpr bool ends_with(const charT* x) const;
+
+    constexpr bool contains(basic_string_view<charT, traits> x) const noexcept;
+    constexpr bool contains(charT x) const noexcept;
+    constexpr bool contains(const charT* x) const;
+
+    // [zstring.view.find], searching
+    constexpr size_type find(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
+    constexpr size_type find(charT c, size_type pos = 0) const noexcept;
+    constexpr size_type find(const charT* s, size_type pos, size_type n) const;
+    constexpr size_type find(const charT* s, size_type pos = 0) const;
+    constexpr size_type rfind(basic_string_view<charT, traits> s, size_type pos = npos) const noexcept;
+    constexpr size_type rfind(charT c, size_type pos = npos) const noexcept;
+    constexpr size_type rfind(const charT* s, size_type pos, size_type n) const;
+    constexpr size_type rfind(const charT* s, size_type pos = npos) const;
+
+    constexpr size_type find_first_of(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
+    constexpr size_type find_first_of(charT c, size_type pos = 0) const noexcept;
+    constexpr size_type find_first_of(const charT* s, size_type pos, size_type n) const;
+    constexpr size_type find_first_of(const charT* s, size_type pos = 0) const;
+    constexpr size_type find_last_of(basic_string_view<charT, traits> s, size_type pos = npos) const noexcept;
+    constexpr size_type find_last_of(charT c, size_type pos = npos) const noexcept;
+    constexpr size_type find_last_of(const charT* s, size_type pos, size_type n) const;
+    constexpr size_type find_last_of(const charT* s, size_type pos = npos) const;
+    constexpr size_type find_first_not_of(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
+    constexpr size_type find_first_not_of(charT c, size_type pos = 0) const noexcept;
+    constexpr size_type find_first_not_of(const charT* s, size_type pos,
+                                          size_type n) const;
+    constexpr size_type find_first_not_of(const charT* s, size_type pos = 0) const;
+    constexpr size_type find_last_not_of(basic_string_view<charT, traits> s,
+                                         size_type pos = npos) const noexcept;
+    constexpr size_type find_last_not_of(charT c, size_type pos = npos) const noexcept;
+    constexpr size_type find_last_not_of(const charT* s, size_type pos,
+                                         size_type n) const;
+    constexpr size_type find_last_not_of(const charT* s, size_type pos = npos) const;
+
+  private:
+    const_pointer data_;        // exposition only
+    size_type size_;            // exposition only
+  };
+}
+```
+
+TODO: Wording on members and operations will be needed. For now focusing on interface.
+
+TODO: `operator basic_zstring_view` for `std::string`
+
+Add to `[format.formatter.spec]` 2.2:
+
+```
+template<class traits>
+  struct formatter<basic_zstring_view<charT, traits>, charT>;
+```
+
+Add to `[format.formatter.spec]` 4.1:
+
+```
+template<class traits>
+  struct formatter<basic_zstring_view<char, traits>, wchar_t>;
+```
