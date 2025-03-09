@@ -136,11 +136,11 @@ The `substr` function is changed from a single function with a default argument,
 
 ### `remove_prefix`
 
-`remove_prefix` is identical to `substr` with one parameter and should return a zstring_view, as it upholds the guarantee of null termination.
+`remove_prefix` drops characters from the front of the string it's called on. Behavior fits.
 
 ### `remove_suffix`
 
-`remove_suffix` is implementable with `substr` with two parameters, but exposes a more limited interface, as it always retains the start. It always removes the null termination guarantee and should return a `string_view`.
+`remove_suffix` changes the string in-situ, and as such is unimplementable on zstring_view. It should be a function marked as =delete with a reason pointing users to use the two-argument `substr` function instead, which returns a `string_view`.
 
 # Bikeshedding
 
@@ -286,6 +286,7 @@ namespace std {
 
     // [zstring.view.modifiers], modifiers
     constexpr void remove_prefix(size_type n);
+    constexpr void remove_suffix(size_type n) = delete;
     constexpr void swap(basic_zstring_view& s) noexcept;
 
     // [zstring.view.ops], zstring operations
