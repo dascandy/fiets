@@ -288,8 +288,6 @@ namespace std {
     constexpr size_type copy(charT* s, size_type n, size_type pos = 0) const;
 
     constexpr basic_string_view<charT, traits> substr(size_type pos = 0, size_type n = npos) const;
-    constexpr basic_zstring_view trim_start(size_type n = npos) const;
-    constexpr basic_string_view<charT, traits> trim_end(size_type n = npos) const;
 
     constexpr int compare(basic_string_view<charT, traits> s) const noexcept;
     constexpr int compare(size_type pos1, size_type n1, basic_zstring_view s) const;
@@ -350,3 +348,17 @@ namespace std {
 TODO: Wording on members and operations will be needed. For now focusing on interface.
 
 TODO: `operator basic_zstring_view` for `std::string`
+
+Add to `[format.formatter.spec]` 2.2:
+
+```
+template<class traits>
+  struct formatter<basic_zstring_view<charT, traits>, charT>;
+```
+
+Add to `[format.formatter.spec]` 4.1:
+
+```
+template<class traits>
+  struct formatter<basic_zstring_view<char, traits>, wchar_t>;
+```
