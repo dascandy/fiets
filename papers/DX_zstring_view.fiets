@@ -148,6 +148,10 @@ Null-terminated string view types are typically named `zstring_view` (N3921, P30
 
 Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing).
 
+# Reference Implementation
+
+A reference implementation is at https://github.com/jeremy-rifkin/zstring_view.
+
 # Wording
 
 Wording is relative to [N4950](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/n4950.pdf) and borrows extensively from existing wording.
