@@ -1,8 +1,8 @@
 std::zstring_view
 
-| Document # | DxxxxR0 |
+| Document # | D3655R0 |
 | Date | 2025-02-19 |
-| Targeted subgroups | LEWGI |
+| Targeted subgroups | LEWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
 | | Hana Dusíková <hanicka@hanicka.net> |
