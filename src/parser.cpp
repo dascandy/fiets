@@ -91,11 +91,11 @@ Text parseText(std::string_view line, Document& doc) {
         size_t end = line.find("]", offset + 1);
         if (line[end+1] == '(') {
           size_t end2 = line.find(")", end + 2);
-          uint32_t index = doc.addReference(std::string(line.substr(offset + 1, end - offset - 1)), std::string(line.substr(end + 2, end2 - end - 2)));
+          uint32_t index = doc.addReference(std::string(line.substr(end + 2, end2 - end - 2)), std::string(line.substr(offset + 1, end - offset - 1)));
           text.seq.push_back(Reference{index});
           offset = end2 + 1;
         } else {
-          uint32_t index = doc.addReference(std::string(line.substr(offset + 1, end - offset - 1)), "");
+          uint32_t index = doc.addReference(std::string(line.substr(offset + 1, end - offset - 1)), std::string(line.substr(offset + 1, end - offset - 1)));
           text.seq.push_back(Reference{index});
           offset = end + 1;
         }
@@ -193,7 +193,8 @@ Document parse(std::string_view file) {
         state = Toplevel;
         currentChapter->entries.push_back(Code{codeLanguage, accumulated});
       } else {
-        accumulated += "\n";
+        if (not accumulated.empty())
+          accumulated += "\n";
         accumulated += line;
       }
       break;

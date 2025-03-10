@@ -1,5 +1,47 @@
 #include "html.h"
 #include <type_traits>
+#include <map>
+#include <unordered_set>
+
+std::unordered_set<std::string> keywords = {
+  "alignas", "alignof", "and_eq", "and", "asm", "auto", "bitand", "bitor", "bool", "break",
+  "case", "catch", "char8_t", "char16_t", "char32_t", "char", "class", "compl", "contract_assert", "const_cast",
+  "constexpr", "consteval", "constinit", "const", "continue", "decltype", "default", "delete", "do", "double",
+  "dynamic_cast", "else", "enum", "explicit", "extern", "false", "final", "float", "for",
+  "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept",
+  "not_eq", "not", "nullptr", "operator", "or_eq", "or", "override", "pre", "post", "private", "protected",
+  "public", "register", "reinterpret_cast", "return", "short", "signed", "sizeof",
+  "static_assert", "static_cast", "static", "struct", "switch", "template", "this",
+  "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union",
+  "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor_eq", "xor",
+};
+
+std::map<char, std::string> replacements = {
+  { '<', "&lt;" },
+  { '>', "&gt;" },
+  { '&', "&amp;" },
+};
+
+enum CharacterType {
+  Alnum = 0,
+  Space = 1,
+  Special = 2,
+  Control = 3,
+  Other = 4,
+  Escape = 5,
+};
+
+CharacterType GetCharacterType(char8_t ch) {
+  if (replacements.contains(ch)) return CharacterType::Escape;
+  if (ch == 0x08 || ch == 0x0a || ch == 0x0d || ch == 0x20) return CharacterType::Space;
+  if (ch >= 0x80) return CharacterType::Other;
+  if (ch == 0x7F || ch < 0x20) return CharacterType::Control;
+  if ((ch >= '0' && ch <= '9') ||
+      (ch >= 'a' && ch <= 'z') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      ch == '_') return CharacterType::Alnum;
+  return CharacterType::Special;
+}
 
 extern std::string html_header1, html_header2, html_footer;
 
@@ -15,7 +57,7 @@ std::string as_html(const Deletion& i) {
 }
 
 std::string as_html(const Reference& i) {
-  return "<a title=\"" + doc->references[i.index-1].name + "\" href=\"#ref-" + std::to_string(i.index) + "\">" + doc->references[i.index-1].name + "</a>";
+  return "<a href=\"" + doc->references[i.index-1].url + "\">" + doc->references[i.index-1].name + "</a>";
 }
 
 std::string as_html(const Quote& i) {
@@ -26,14 +68,115 @@ std::string as_html(const Identifier& i) {
   return "<span class=\"identifier\">" + std::string(i.text) + "</span>";
 }
 
-std::string as_html(const CodeSpan& i) {
-  std::string copy(i.text);
-  size_t offs = copy.find_first_of("<>");
-  while (offs != std::string::npos) {
-    copy = copy.substr(0, offs) + (copy[offs] == '<' ? "&lt;" : "&gt;") + copy.substr(offs+1);
-    offs = copy.find_first_of("<>");
+enum state {
+  Gathering,
+  CommentEOL,
+  CommentBlock
+};
+
+std::string highlight(std::string_view text) {
+  std::string output;
+  CharacterType current = CharacterType::Control;
+  std::string accum;
+  state s = Gathering;
+  for (auto& c : text) {
+    switch(s) {
+    case Gathering:
+      if (GetCharacterType(c) != current) {
+        if (not accum.empty()) {
+          switch(current) {
+          case CharacterType::Alnum:
+            if (keywords.contains(accum)) {
+              output += "<span class=\"keyword\">" + accum + "</span>";
+            } else {
+              output += accum;
+            }
+            break;
+          case CharacterType::Space:
+            output += accum;
+            break;
+          case CharacterType::Escape:
+            output += "<span class=\"special\">";
+            for (auto& ch : accum) {
+              output += replacements[ch];
+            }
+            output += "</span>";
+            break;
+          case CharacterType::Other:
+            output += accum;
+            break;
+          case CharacterType::Special:
+            output += "<span class=\"special\">" + accum + "</span>";
+            break;
+          case CharacterType::Control:
+            // Should nevr happen. Maybe transcode?
+            output += accum;
+            break;
+          }
+          accum.clear();
+        }
+      }
+      current = GetCharacterType(c);
+      accum.push_back(c);
+      break;
+    case CommentEOL:
+      if (c == '\n') {
+        s = Gathering;
+        output += "<span class=\"comment\">" + accum + "</span><br>";
+        accum.clear();
+      } else {
+        accum.push_back(c);
+      }
+      break;
+    case CommentBlock:
+      accum.push_back(c);
+      if (accum.ends_with("*/")) {
+        s = Gathering;
+        output += "<span class=\"comment\">" + accum + "</span><br>";
+        accum.clear();
+      }
+      break;
+    }
+    if (accum == "//") {
+      s = CommentEOL;
+    } else if (accum == "/*") {
+      s = CommentBlock;
+    }
   }
-  return "<span class=\"code\">" + copy + "</span>";
+  switch(current) {
+  case CharacterType::Alnum:
+    if (keywords.contains(accum)) {
+      output += "<span class=\"keyword\">" + accum + "</span>";
+    } else {
+      output += accum;
+    }
+    break;
+  case CharacterType::Space:
+    output += accum;
+    break;
+  case CharacterType::Escape:
+    output += "<span class=\"special\">";
+    for (auto& ch : accum) {
+      output += replacements[ch];
+    }
+    output += "</span>";
+    break;
+  case CharacterType::Other:
+    output += accum;
+    break;
+  case CharacterType::Special:
+    output += "<span class=\"special\">" + accum + "</span>";
+    break;
+  case CharacterType::Control:
+    // Should nevr happen. Maybe transcode?
+    output += accum;
+    break;
+  }
+  return output;
+}
+
+std::string as_html(const CodeSpan& i) {
+  return "<span class=\"code\">" + highlight(i.text) + "</span>";
 }
 
 std::string as_html(const std::string& s) {
@@ -93,13 +236,7 @@ std::string as_html(const Text& l) {
 }
 
 std::string as_html(const Code& c) {
-  std::string copy(c.body);
-  size_t offs = copy.find_first_of("<>");
-  while (offs != std::string::npos) {
-    copy = copy.substr(0, offs) + (copy[offs] == '<' ? "&lt;" : "&gt;") + copy.substr(offs+1);
-    offs = copy.find_first_of("<>");
-  }
-  return "<code><div class=\"code\">" + std::string(copy) + "</div></code>";
+  return "<code><div class=\"code\">" + highlight(c.body) + "</div></code>";
 }
 
 std::string as_html(const List& l) {
@@ -252,6 +389,15 @@ std::string html_header1 =
   "a.self-link::before { content: \"§\"; }\n"
   "span.identifier {\n"
   "  font-style: italic;\n"
+  "}\n"
+  "span.special {\n"
+  "  color: #bf003f;\n"
+  "}\n"
+  "span.keyword {\n"
+  "  color: #0030cf;\n"
+  "}\n"
+  "span.comment {\n"
+  "  color: #00c000;\n"
   "}\n"
   "span.new {\n"
   "  text-decoration: underline;\n"
