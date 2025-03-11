@@ -32,7 +32,7 @@ However, in 2024 [P3081 Core safety profiles for C++26](https://wg21.link/p3081)
 
 > This is one of the commonly-requested features from the [GSL](https://github.com/microsoft/GSL) library that does not yet have a std:: equivalent. It was specifically requested by several reviewers of this work.
 
-During the discussion, it was made clear that this is not a type that should be happenstance introduced as part of a different topic entirely. It was also made clear that the `zstring_view` optional section was not the reason to vote against at that time. P3081 didn't pass anyway, making that point moot, but it stands as another example of the utility being seen as desirable.
+During the discussion, it was made clear that `zstring_view` deserves attention on its own and it should be happenstance introduced as part of an entirely different topic. While P3081 did not end up passing for reasons other than `zstring_view`, it is another example of the utility being seen as desirable.
 
 We also have [P2996 Reflection for C++26](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r9.html), which in its specification of functions returning a `string_view` or `u8string_view` tries its best to say it's actually supposed to be a `zstring_view`, except without naming the type for existential reasons:
 
