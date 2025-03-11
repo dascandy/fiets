@@ -141,6 +141,21 @@ Github code search shows similar popularity between [`cstring_view`](https://git
 
 A reference implementation is at [Jeremy's Github](https://github.com/jeremy-rifkin/zstring_view).
 
+# Standard Library Changes
+
+There are a handful of interfaces in the standard library which take `const string&` and really want a `zstring_view`
+or possibly a `string_view`. These include:
+
+- Constructors for stdexcept types, `system_error`, `format_error`, `ios_base::failure`, and `std::filesystem::filesystem_error`
+- The `stoi` family of functions
+- `random_device::random_device`
+- Lots of locale interfaces
+- `basic_filebuf::open`, `basic_ifstream::basic_ifstream`, `basic_ifstream::open`, `basic_ofstream::basic_ofstream`, `basic_ofstream::open`, `basic_fstream::basic_fstream`,  and `basic_fstream::open`
+
+There are further interfaces which take `const char*` and could have overloads taking a `zstring_view` or `string_view`.
+
+We do not propose any such changes in this paper but would like to in a follow-up paper.
+
 # Polls
 
 The first question to LEWG is, do we want to have the zstring_view type in the standard library? So far it looks like voting against the type leads to people implementing their own, including C++ committee members "implementing" their own zstring_view in wording. We also have a few direction questions with regards to either "fixing" string interface, or keeping the interfaces synchronized.
