@@ -372,7 +372,7 @@ namespace std {
 
     // [zstring.view.modifiers], modifiers
     constexpr void remove_prefix(size_type n);
-    constexpr void remove_suffix(size_type n) = delete;
+    constexpr void remove_suffix(size_type n) = delete("cannot remove_suffix in-place on zstring_view while retaining null terminator. Use substr instead.");
     constexpr void swap(basic_zstring_view& s) noexcept;
 
     // [zstring.view.ops], zstring operations
