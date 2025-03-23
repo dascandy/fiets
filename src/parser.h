@@ -8,7 +8,11 @@ struct Insertion;
 struct Deletion;
 struct Reference;
 struct Identifier;
-struct CodeSpan;
+struct CodeSpan { std::string_view text; };
+struct Code {
+  std::string_view language = "cpp";
+  std::string body;
+};
 struct Text {
   std::vector<std::variant<std::string, Insertion, Deletion, Reference, Identifier, CodeSpan>> seq; 
 };
@@ -23,12 +27,7 @@ struct Insertion { Text text; };
 struct Deletion { Text text; };
 struct Reference { uint32_t index; };
 struct Identifier { std::string_view text; };
-struct CodeSpan { std::string_view text; };
 
-struct Code {
-  std::string_view language = "c++";
-  std::string body;
-};
 struct List {
   std::vector<Text> entries; 
 };
@@ -42,7 +41,7 @@ struct IdentifierDefinition {
 struct Table {
   std::vector<std::vector<Text>> entries;
 };
-struct Quote { Text text; };
+struct Quote { std::vector<Text> texts; };
 
 struct References {};
 struct TOC {};

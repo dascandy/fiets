@@ -61,7 +61,12 @@ std::string as_html(const Reference& i) {
 }
 
 std::string as_html(const Quote& i) {
-  return "<p class=\"quote\">" + as_html(i.text) + "</p>";
+  std::string rv = "<p class=\"quote\">";
+  for (auto& q : i.texts) {
+    rv += as_html(q);
+  }
+  rv += "</p>";
+  return rv;
 }
 
 std::string as_html(const Identifier& i) {

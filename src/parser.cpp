@@ -156,7 +156,12 @@ Document parse(std::string_view file) {
         codeLanguage = line.substr(3);
         accumulated = "";
       } else if (line.starts_with("> ")) {
-        currentChapter->entries.push_back(Quote{parseText(line.substr(2), doc)});
+        Text text = parseText(line.substr(2), doc);
+        if (currentChapter->entries.empty() ||
+            not std::holds_alternative<Quote>(currentChapter->entries.back())) {
+          currentChapter->entries.push_back(Quote{});
+        }
+        std::get<Quote>(currentChapter->entries.back()).texts.push_back(text);
       } else if (line.starts_with("[[references]]")) {
         currentChapter->entries.push_back(References());
       } else if (line.starts_with("[[TOC]]")) {
