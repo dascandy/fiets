@@ -401,7 +401,7 @@ std::string html_header1 =
   "}\n"
   "span.new {\n"
   "  text-decoration: underline;\n"
-  "  background-color: #006e28;\n"
+  "  background-color: #00ff40;\n"
   "}\n"
   "div.code, span.code {\n"
   "  font-family: Courier New, monospace;\n"

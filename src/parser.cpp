@@ -1,7 +1,7 @@
 #include "parser.h"
 #include <string_view>
 
-uint32_t Document::addReference(std::string url, std::string name) {
+uint32_t Document::addReference(std::string name, std::string url) {
   for (size_t n = 0; n < references.size(); n++) {
     if (references[n].url == url) return references[n].index;
   }
@@ -46,8 +46,8 @@ Text parseText(std::string_view line, Document& doc) {
           if (!accum.empty()) text.seq.push_back(accum);
           accum = "";
           size_t end = line.find("+++", offset + 3);
-          text.seq.push_back(Insertion{parseText(line.substr(offset + 3, end - offset - 3), doc)});
-          offset = end + 3;
+          text.seq.push_back(Insertion{parseText(line.substr(offset + 3, end == std::string::npos ? end : end - offset - 3), doc)});
+          offset = end == std::string::npos ? line.size() : end + 3;
         } 
         else 
         {
