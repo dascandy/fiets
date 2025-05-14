@@ -1,7 +1,7 @@
 Container truncation 
 
 | Document # | D3526R0 |
-| Date | 2024-11-22 |
+| Date | 2025-02-12 |
 | Project |	Programming Language C++ |
 | Targeted subgroups | LEWG |
 | Target release | C++26 |
@@ -13,26 +13,22 @@ std::vector (et al) have a function to change the number of stored allocations, 
 
 It enables truncating containers with types that are not default-constructible. Right now, if you have a container with non-default-constructible types, there is no way to truncate, other than to repeatedly pop_back(). The resulting compile error is not immediately obvious, as the mental model of the user is "I am only removing items since I truncate the container".
 
-In addition, it helps code readability to be able to specify that a given code fragment will only reduce the size of a buffer, which in some contexts is a common operation.
+In addition, it helps code readability to be able to specify that a given code fragment will only reduce the size of a buffer, which in some contexts is a common operation, like reading packages to a buffer and reducing the buffer size to match.
 
 # Wording
 
 In the summaries of `vector`, `inplace_vector`, `list`, `forward_list`, `deque` and `vector<bool>`, add the function
 
-```
-    constexpr void      truncate(size_type sz) noexcept;
-```
++++`    constexpr void      truncate(size_type sz) noexcept;`
 
 In the corresponding explanation blocks following, add the following
 
-```
-void truncate(size_type sz) noexcept;
++++`void truncate(size_type sz) noexcept;`
 
-expects: T is MoveInsertable into `deque`
++++Expects: T is MoveInsertable into `deque`
 
-Precondition: `sz` is less than or equal to `size()`
++++Preconditions: sz is less than or equal to `size()`
 
-effects: Erases the last `size() - sz` elements from the sequence.
-```
++++Effects: Erases the last `size() - sz` elements from the sequence.
 
 
