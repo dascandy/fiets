@@ -7,6 +7,7 @@
 struct Insertion;
 struct Deletion;
 struct Reference;
+struct FootnoteRef;
 struct Identifier;
 struct CodeSpan { std::string_view text; };
 struct Code {

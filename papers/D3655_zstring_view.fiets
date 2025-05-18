@@ -1,7 +1,7 @@
 std::zstring_view
 
 | Document # | P3655R1 |
-| Date | 2025-05-14 |
+| Date | 2025-05-18 |
 | Targeted subgroups | LEWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
@@ -16,7 +16,7 @@ We propose a standard string view type that guarantees null-termination.
 
 C++17 introduced `std::string_view`, a non-owning view of a continuous sequence of characters. It is cheap to use, offers fast operations, and replaced most uses of `const std::string&` or `const char*` as function parameters.  The utility and interface of string views as well as the benefits of not having to do unnecessary `strlen` calculations on C-style strings makes string view types highly desirable for working with strings in C++.
 
-Unlike `const std::string&` and `const char*`, `std::string_view` is not null-terminated which is important for fast and cheap substring operations. However, this means `std::string_view` is not a suitable replacement for either of the two aforementioned types whenever a null-terminated C-style string is needed. While most C++ code mostly interfaces with C++ code, it is not uncommon to need to use operating system calls, C interfaces, third-party library APIs, or even C++ standard library APIs which require null-terminated strings. Because of a lack of a desirable option for passing non-owned null-terminated strings, `std::string_view` parameters are none the less sometimes used today in cases where null-terminated strings are needed, calling `std::string_view::data` to get a `const char*`. This is, needless to say, very bug-prone.
+Unlike `const std::string&` and many but not all `const char*`, `std::string_view` is not null-terminated. This allows it to have fast and cheap substring operations. However, this also means `std::string_view` is not a suitable replacement for either of the two aforementioned types whenever a null-terminated C-style string is needed. While most C++ code mostly interfaces with C++ code, it is not uncommon to need to use operating system calls, C interfaces, third-party library APIs, or even C++ standard library APIs which require null-terminated strings. Because of a lack of a desirable option for passing non-owned null-terminated strings, `std::string_view` parameters are none the less sometimes used today in cases where null-terminated strings are needed, calling `std::string_view::data` to get a `const char*`. This is, needless to say, very bug-prone.
 
 For this reason, many C++ developers use custom `zstring_view` or `cstring_view` types which are guaranteed to be null-terminated. We propose standardizing this utility.
 
@@ -26,13 +26,13 @@ The idea of `zstring_view` was present even in the original paper for `string_vi
 
 > Another option would be to define a separate zstring_view class to represent null-terminated strings and let it decay to string_view when necessary. That's plausible but not part of this proposal.
 
-An attempt was made in Feb 2019 to concretely propose the type (renamed to `cstring_view`) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space." It should be noted that this discussion was in LEWGI, and was not taken by full LEWG. It is also worth noting that contracts were briefly contemplated in the minutes as a way of addressing the problem, however, contracts can't check for a null character safely as it wouldn't be part of the view. Similarly, other runtime checks for `string_view` null-termination are off the table.
+An attempt was made in Feb 2019 to concretely propose the type (renamed to `cstring_view`) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus in LEWGI at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space." It is also worth noting that contracts were briefly contemplated in the minutes as a way of addressing the problem, however, contracts can't check for a null character safely as it wouldn't be part of the view. Similarly, other runtime checks for `string_view` null-termination are off the table.
 
 However, in 2024 [P3081 Core safety profiles for C++26](https://wg21.link/p3081) was published which contains an aside regarding a null-terminated `zstring_view` in section 8, noting:
 
 > This is one of the commonly-requested features from the [GSL](https://github.com/microsoft/GSL) library that does not yet have a std:: equivalent. It was specifically requested by several reviewers of this work.
 
-During the discussion, it was made clear that `zstring_view` deserves attention on its own and it should be happenstance introduced as part of an entirely different topic. While P3081 did not end up passing for reasons other than `zstring_view`, it is another example of the utility being seen as desirable.
+During the discussion, it was made clear that `zstring_view` deserves attention on its own and it should not be happenstance introduced as part of an entirely different topic. While P3081 did not end up passing for reasons other than `zstring_view`, it is another example of the utility being seen as desirable.
 
 We also have [P2996 Reflection for C++26](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r9.html), which in its specification of functions returning a `string_view` or `u8string_view` tries its best to say it's actually supposed to be a `zstring_view`, except without naming the type for existential reasons:
 
@@ -42,7 +42,7 @@ As such, we do believe that there is both space for such a type, and a desire fr
 
 # Reasons to have the type
 
-Many functions right now whether C++ standard library calls, operating system calls, or third-party library calls require null-terminated C-style strings. Absent an efficient type that can represent a non-owning view of a null-terminated string, these functions must take either a `const char*` and incur potential `strlen` overhead, take a `const std::string&` and possibly superfluously copy and allocate, take a `string_view` and make a copy, or haphazardly take a `std::string_view` with an unenforceable contract that it is a view of a null-terminated string. Such a contract would be unenforceable because `pre(sv[sv.size()] == 0)` is potentially undefined behavior.
+Many functions right now whether C++ standard library calls, operating system calls, or third-party library calls require null-terminated C-style strings. Absent an efficient type that can represent a non-owning view of a null-terminated string, these functions must take either a `const char*` and incur potential `strlen` overhead, take a `const std::string&` and possibly superfluously copy and allocate, take a `string_view` and make a copy, or haphazardly take a `std::string_view` with a fragile unenforceable contract that it is a view of a null-terminated string. Such a contract would be unenforceable because `pre(sv[sv.size()] == 0)` is potentially undefined behavior.
 
 String views tend to start their life coming from a string literal or from a type that owns its internal buffer, often `std::string`. Both of these are places that can always create a `zstring_view` instead, as they both know their data is inherently null terminated.
 
@@ -50,22 +50,22 @@ Strings are very often just passed along with a non-owning string type all the w
 
 We do not have to look far for examples of `std::string_view` being used in bug-prone ways with APIs expecting null-terminators. Searching `/\.data\(\)/ string_view language:c++ -is:fork` on GitHub code search turns up two examples on the first page:
 
-> From [surge-synthesizer/shortcircuit-xt](https://github.com/surge-synthesizer/shortcircuit-xt/blob/ba6ea3a2e703e4fa0ed069427aa42b668699b624/libs/md5sum/demo.cc#L37)
->
-> ```cpp
-> std::optional<std::string> hash_file(const std::string_view &file_name) {
->     auto fd = open(file_name.data(), O_RDONLY);
->     ...
-> ```
->
-> From [VisualGMQ/gmq_header](https://github.com/VisualGMQ/gmq_header/blob/cbc2853f391acc51ddd25a50d567cac404776413/log.hpp#L66)
->
-> ```cpp
-> void log(Level level, std::string_view funcName, std::string_view filename, unsigned int line, Args&&... args) {
->     if (level <= level_) {
->         printf("[%s][%s][%s][%u]", Level2Str(level).data(), filename.data(), funcName.data(), line);
->         ...
-> ```
+From [surge-synthesizer/shortcircuit-xt](https://github.com/surge-synthesizer/shortcircuit-xt/blob/ba6ea3a2e703e4fa0ed069427aa42b668699b624/libs/md5sum/demo.cc#L37)
+
+```cpp
+std::optional<std::string> hash_file(const std::string_view &file_name) {
+    auto fd = open(file_name.data(), O_RDONLY);
+    ...
+```
+
+From [VisualGMQ/gmq_header](https://github.com/VisualGMQ/gmq_header/blob/cbc2853f391acc51ddd25a50d567cac404776413/log.hpp#L66)
+
+```cpp
+void log(Level level, std::string_view funcName, std::string_view filename, unsigned int line, Args&&... args) {
+    if (level <= level_) {
+        printf("[%s][%s][%s][%u]", Level2Str(level).data(), filename.data(), funcName.data(), line);
+        ...
+```
 
 These two examples could be argued to be bad code or misuses of `std::string_view`, however, the fact that they are written reflects the desire for the ability to use string view types in such cases.
 
@@ -108,16 +108,16 @@ This is now an ambiguous function call. It is not a new problem; [Example on God
 `std::basic_string_view` offers a handful of constructors:
 
 ```cpp
-constexpr basic_string_view(const charT* str);
-constexpr basic_string_view(const charT* str, size_type len);
+constexpr basic_string_view(const charT* str); // (1)
+constexpr basic_string_view(const charT* str, size_type len); // (2)
 template<class It, class End>
-constexpr basic_string_view(It begin, End end);
+constexpr basic_string_view(It begin, End end); // (3)
 template<class R>
-constexpr explicit basic_string_view(R&& r);
-basic_string_view( std::nullptr_t ) = delete;
+constexpr explicit basic_string_view(R&& r); // (4)
+basic_string_view( std::nullptr_t ) = delete; // (5)
 ```
 
-All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be inadvertently misused. We propose still offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1) constructor with precondition that the string indeed contains a null terminator after it, and none inside the string, but omitting the iterator and range constructors. The range constructor would be particularly easy to inadvertently misuse.
+All of these could be supported for `zstring_view`, however, all but (1) could be inadvertently misused. We propose still offering (2) as an O(1) constructor with checked precondition that the string indeed contains a null terminator after it, and none inside the string. We propose omitting the iterator (3) and range (4) constructors.
 
 ## Member functions on `string_view` that return a `string_view`
 
@@ -180,7 +180,7 @@ The bikeshedding mentioned above. At this point we can still choose which name t
 
 SG16 has long held that char_traits offer no value and are sometimes abused. If possible they would propose to remove it altogether [P3681]. This paper however is trying to add `zstring_view` to the standard without changing the direction for char_traits, and as such it is not proposing to remove char_traits.
 
-Removing it anyway would necessarily lose information on implicit conversion from std::string through std::zstring_view to std::string_view, as the char_traits that were present on the string are no longer possible to transfer to the string_view. There was a poll taken in SG16 with regards to char_traits needing to be removed, needing to be kept, or whether no objection existed to retaining it for compatibility, and the following poll was taken:
+Removing it anyway would necessarily lose information on implicit conversion from std::string through std::zstring_view to std::string_view, as the char_traits that were present on the string are no longer possible to transfer to the string_view. There was a discussion in SG16 with regards to char_traits needing to be removed, needing to be kept, or whether no objection existed to retaining it for compatibility, and the following poll was taken:
 
 > Poll 1: P3655R0: No objection to use of std::char_traits for consistency and compatibility with std::string_view.
 
@@ -192,16 +192,14 @@ Removing it anyway would necessarily lose information on implicit conversion fro
 
 The paper authors hold no strong opinion on whether char_traits should be kept or removed. Pragmatically we propose to keep char_traits to make the conversion through zstring_view lossless, and to treat removal of char_traits support as a uniform thing to be applied to all string types. [P3681] disagrees, however, and we hope to see it up for discussion to reduce user-visible churn.
 
-## We prefer the zstring_view interface to "fix" the known problems in string_view's interface
-
-The poll is worded as a difference from the current proposal, which tries to match the existing `string` and `string_view` where possible. The "fixes" would entail:
-
-### Array constructor
+## We prefer the zstring_view interface to add an array constructor
 
 ```cpp
 template <size_t N>
 explicit constexpr basic_zstring_view(const charT (&str)[N]);
 ```
+
+The advantage of adding this function is that it is a clean constructor to convert from a string literal with compile-time known size. The downsides are that it will create an interface difference between `string_view` and `zstring_view`, and that it matches runtime arrays that may differ in length from their storage size.
 
 # `trim(n)` functions
 
