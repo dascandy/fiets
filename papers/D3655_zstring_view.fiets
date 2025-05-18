@@ -1,7 +1,7 @@
 std::zstring_view
 
-| Document # | D3655R0 |
-| Date | 2025-02-19 |
+| Document # | P3655R1 |
+| Date | 2025-05-14 |
 | Targeted subgroups | LEWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
@@ -75,6 +75,8 @@ The type effectively fills out the design space that exists around strings withi
 
 Without them we retain the question we had before - `const char*`, `const std::string&` or `string_view`? The first loses lots of type safety and potentially requires redundant `strlen` computation elsewhere in the software, the second requires it to be a `std::string` but retains null-termination knowledge, the last offers the ability to send any string type constructible to a string_view, but loses any knowledge of null termination. For the common case of passing along "some string input" to a function that ends up requiring null termination, the proposed `zstring_view` is the only type that properly captures it.
 
+Since the first draft of this paper the use of `cstring_view` and `zstring_view` on Github has grown from 1.9k to 2.1k, indicating active use, and in many cases people adding new implementations of the type. Many contain the subtle bugs that we highlight in this paper, illustrating why it is a good idea to add the type to the standard.
+
 # Reasons not to have the type
 
 In an ideal world, we could actually fix the operating systems and third-party libraries to accept pointer-and-size strings in all places, removing the need for null termination to exist, and for null termination propagation to be relevant. Sometimes, in particular from environments where this may not be unrealistic in a subset, the argument is voiced that `zstring_view` does not offer any benefits.
@@ -99,9 +101,11 @@ This brings into reality an overload ambiguity:
 
 This is now an ambiguous function call. It is not a new problem; [Example on Godbolt](https://godbolt.org/z/c31e31fKW) shows that the exact same problem already happens with regular `std::string` and `std::string_view`. The reason is somewhat fundamental; all three types model the concept "string" and *are* ambiguous. The user should be clear about which properties of string it's expecting. Adding this new type only adds to the vocabulary the option to say "non-owning null-terminated", giving the user better choices rather than complicating it.
 
+
+
 ## Construction
 
-`std::basic_string_view` offers a handfull of constructors:
+`std::basic_string_view` offers a handful of constructors:
 
 ```cpp
 constexpr basic_string_view(const charT* str);
@@ -113,7 +117,7 @@ constexpr explicit basic_string_view(R&& r);
 basic_string_view( std::nullptr_t ) = delete;
 ```
 
-All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be inadvertently misused. We propose offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1) constructor but omitting the iterator and range constructors. The range constructor would be particularly easy to inadvertently misuse, especially if not `explicit`.
+All of these could be supported for `zstring_view`, however, all but `basic_string_view(const charT* str)` could be inadvertently misused. We propose still offering `constexpr basic_string_view(const charT* str, size_type len);` as an O(1) constructor with precondition that the string indeed contains a null terminator after it, and none inside the string, but omitting the iterator and range constructors. The range constructor would be particularly easy to inadvertently misuse.
 
 ## Member functions on `string_view` that return a `string_view`
 
@@ -135,7 +139,7 @@ The `substr` function is changed from a single function with a default argument,
 
 Null-terminated string view types are typically named `zstring_view` (N3921, P3081, GSL) or `cstring_view` (P1402). `cstring_view` follows the `std::string::c_str()` nomenclature while `zstring_view` has some establishment and recognizability.
 
-Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing).
+Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing). In refreshing this paper, it appears that cstring_view has gained ~200 added results, while zstring_view only added 8, hinting at a popular preference for the former name.
 
 # Reference Implementation
 
@@ -168,9 +172,25 @@ If so, we will return at the next meeting (Kona 2025) with the wording worked ou
 
 The bikeshedding mentioned above. At this point we can still choose which name to use. The authors have no preference.
 
-- `cstring_view` is slightly more common on Github at the time of writing
+- `cstring_view` is more common on Github at the time of writing, at a factor of about 2:1
 - `cstring_view` matches existing `std::string` interface nomenclature (`c_str()`).
 - `zstring_view` is the most recently proposed name in [P3081](https://wg21.link/p3081)
+
+## We prefer zstring_view to remove char_traits from its interface.
+
+SG16 has long held that char_traits offer no value and are sometimes abused. If possible they would propose to remove it altogether [P3681]. This paper however is trying to add `zstring_view` to the standard without changing the direction for char_traits, and as such it is not proposing to remove char_traits.
+
+Removing it anyway would necessarily lose information on implicit conversion from std::string through std::zstring_view to std::string_view, as the char_traits that were present on the string are no longer possible to transfer to the string_view. There was a poll taken in SG16 with regards to char_traits needing to be removed, needing to be kept, or whether no objection existed to retaining it for compatibility, and the following poll was taken:
+
+> Poll 1: P3655R0: No objection to use of std::char_traits for consistency and compatibility with std::string_view.
+
+| SF | F | N | A | SA |
+| 7 | 1 | 0 | 0 | 0 |
+
+> Strong consensus. 
+> Attendees: 8 (no abstentions)
+
+The paper authors hold no strong opinion on whether char_traits should be kept or removed. Pragmatically we propose to keep char_traits to make the conversion through zstring_view lossless, and to treat removal of char_traits support as a uniform thing to be applied to all string types. [P3681] disagrees, however, and we hope to see it up for discussion to reduce user-visible churn.
 
 ## We prefer the zstring_view interface to "fix" the known problems in string_view's interface
 
@@ -183,13 +203,16 @@ template <size_t N>
 explicit constexpr basic_zstring_view(const charT (&str)[N]);
 ```
 
-### `trim(n)` functions
+# `trim(n)` functions
 
 We don't include `remove_suffix` in the `zstring_view` interface for reasons mentioned earlier, but, it could be desirable to introduce a `trim_suffix` member function which does the same operation but returns a `string_view` instead of mutating the `zstring_view`. For completeness:
+
 ```cpp
 constexpr basic_zstring_view trim_prefix(size_type n) const;
 constexpr basic_string_view<charT, traits> trim_suffix(size_type n) const;
 ```
+
+We do not propose this in this paper, but it is a potential addition to consider for a different paper.
 
 # Wording
 
