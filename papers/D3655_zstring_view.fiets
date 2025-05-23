@@ -121,15 +121,35 @@ When one overload is preferred, but others should exist, the less preferred ones
 
 ```cpp
 constexpr basic_string_view(const charT* str); // (1)
+```
+
+The basic constructor from an unadorned `charT*` risks taking a non-null-terminated string and searching for the null terminator. For `zstring_view` this constructor is as safe as it is for `string_view`, since we need to have a null terminator anyway.
+
+```cpp
 constexpr basic_string_view(const charT* str, size_type len); // (2)
+```
+
+This constructor conceptually offers a O(1) construction time. For zstring_view we add a contract that asserts that `str[len] == '\0'`.
+
+```cpp
 template<class It, class End>
 constexpr basic_string_view(It begin, End end); // (3)
+```
+
+This constructor is problematic to support, as we have to check the end iterator to ensure the string is null-terminated, but the end iterator cannot be assumed to be dereferencable.
+
+```cpp
 template<class R>
 constexpr explicit basic_string_view(R&& r); // (4)
+```
+
+This constructor is difficult to support as well; we need to check that after the end of the range there is a null terminator, which is by definition accessing out of the range.
+
+```cpp
 basic_string_view( std::nullptr_t ) = delete; // (5)
 ```
 
-All of these could be supported for `zstring_view`, however, all but (1) could be inadvertently misused. We propose still offering (2) as an O(1) constructor with checked precondition that the string indeed contains a null terminator after it, and none inside the string. We propose omitting the iterator (3) and range (4) constructors.
+We should not support constructing a string from nullptr.
 
 ## Member functions on `string_view` that return a `string_view`
 
@@ -230,6 +250,8 @@ evaluate_command(user_command); // newer function that uses user_command.size()
 ```
 
 We can prevent these bugs at this stage by disallowing contained NULs in the NUL-terminated string view type. But it is a breaking change to existing expectation.
+
+A strong argument against is that constructing a `zstring_view` from this string literal will behave differently than constructing a `string_view` would, and the invariant that `zstring_view` is null-terminated is not broken with an embedded NUL.
 
 # Wording
 
@@ -357,8 +379,14 @@ namespace std {
     constexpr basic_zstring_view() noexcept;
     basic_zstring_view(const basic_zstring_view&) noexcept = default;
     basic_zstring_view& operator=(const basic_zstring_view&) noexcept = default;
-    constexpr basic_zstring_view(const charT* str);
-    constexpr basic_zstring_view(const charT* str, size_type len);
+    constexpr basic_zstring_view(const charT* str) noexcept
+              pre(str != nullptr);
+    constexpr basic_zstring_view(const charT* str, size_type len) noexcept
+              pre (str != nullptr) 
+              pre (str[len] == '\0');
+    template <size_t N>
+    constexpr basic_zstring_view(const charT (&str)[N]) noexcept
+              pre (traits::find(str, N, '\0') != nullptr);
     basic_zstring_view(nullptr_t) = delete;
 
     // [zstring.view.iterators], iterator support
@@ -378,7 +406,8 @@ namespace std {
     [[nodiscard]] constexpr bool empty() const noexcept;
 
     // [zstring.view.access], element access
-    constexpr const_reference operator[](size_type pos) const;
+    constexpr const_reference operator[](size_type pos) const
+              pre (pos <= size());
     constexpr const_reference at(size_type pos) const;
     constexpr const_reference front() const;
     constexpr const_reference back() const;
@@ -401,50 +430,68 @@ namespace std {
     constexpr int compare(size_type pos1, size_type n1, basic_zstring_view s) const;
     constexpr int compare(size_type pos1, size_type n1, basic_zstring_view s,
                           size_type pos2, size_type n2) const;
-    constexpr int compare(const charT* s) const;
-    constexpr int compare(size_type pos1, size_type n1, const charT* s) const;
-    constexpr int compare(size_type pos1, size_type n1, const charT* s, size_type n2) const;
+    constexpr int compare(const charT* s) const
+              pre (s != nullptr);
+    constexpr int compare(size_type pos1, size_type n1, const charT* s) const
+              pre (s != nullptr);
+    constexpr int compare(size_type pos1, size_type n1, const charT* s, size_type n2) const
+              pre (s != nullptr);
 
     constexpr bool starts_with(basic_string_view<charT, traits> x) const noexcept;
     constexpr bool starts_with(charT x) const noexcept;
-    constexpr bool starts_with(const charT* x) const;
+    constexpr bool starts_with(const charT* x) const
+              pre (x != nullptr);
     constexpr bool ends_with(basic_string_view<charT, traits> x) const noexcept;
     constexpr bool ends_with(charT x) const noexcept;
-    constexpr bool ends_with(const charT* x) const;
+    constexpr bool ends_with(const charT* x) const
+              pre (x != nullptr);
 
     constexpr bool contains(basic_string_view<charT, traits> x) const noexcept;
     constexpr bool contains(charT x) const noexcept;
-    constexpr bool contains(const charT* x) const;
+    constexpr bool contains(const charT* x) const
+              pre (x != nullptr);
 
     // [zstring.view.find], searching
     constexpr size_type find(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
     constexpr size_type find(charT c, size_type pos = 0) const noexcept;
-    constexpr size_type find(const charT* s, size_type pos, size_type n) const;
-    constexpr size_type find(const charT* s, size_type pos = 0) const;
+    constexpr size_type find(const charT* s, size_type pos, size_type n) const
+              pre (s != nullptr);
+    constexpr size_type find(const charT* s, size_type pos = 0) const
+              pre (s != nullptr);
     constexpr size_type rfind(basic_string_view<charT, traits> s, size_type pos = npos) const noexcept;
     constexpr size_type rfind(charT c, size_type pos = npos) const noexcept;
-    constexpr size_type rfind(const charT* s, size_type pos, size_type n) const;
-    constexpr size_type rfind(const charT* s, size_type pos = npos) const;
+    constexpr size_type rfind(const charT* s, size_type pos, size_type n) const
+              pre (s != nullptr);
+    constexpr size_type rfind(const charT* s, size_type pos = npos) const
+              pre (s != nullptr);
 
     constexpr size_type find_first_of(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
     constexpr size_type find_first_of(charT c, size_type pos = 0) const noexcept;
-    constexpr size_type find_first_of(const charT* s, size_type pos, size_type n) const;
-    constexpr size_type find_first_of(const charT* s, size_type pos = 0) const;
+    constexpr size_type find_first_of(const charT* s, size_type pos, size_type n) const
+              pre (s != nullptr);
+    constexpr size_type find_first_of(const charT* s, size_type pos = 0) const
+              pre (s != nullptr);
     constexpr size_type find_last_of(basic_string_view<charT, traits> s, size_type pos = npos) const noexcept;
     constexpr size_type find_last_of(charT c, size_type pos = npos) const noexcept;
-    constexpr size_type find_last_of(const charT* s, size_type pos, size_type n) const;
-    constexpr size_type find_last_of(const charT* s, size_type pos = npos) const;
+    constexpr size_type find_last_of(const charT* s, size_type pos, size_type n) const
+              pre (s != nullptr);
+    constexpr size_type find_last_of(const charT* s, size_type pos = npos) const
+              pre (s != nullptr);
     constexpr size_type find_first_not_of(basic_string_view<charT, traits> s, size_type pos = 0) const noexcept;
     constexpr size_type find_first_not_of(charT c, size_type pos = 0) const noexcept;
     constexpr size_type find_first_not_of(const charT* s, size_type pos,
-                                          size_type n) const;
-    constexpr size_type find_first_not_of(const charT* s, size_type pos = 0) const;
+                                          size_type n) const
+              pre (s != nullptr);
+    constexpr size_type find_first_not_of(const charT* s, size_type pos = 0) const
+              pre (s != nullptr);
     constexpr size_type find_last_not_of(basic_string_view<charT, traits> s,
                                          size_type pos = npos) const noexcept;
     constexpr size_type find_last_not_of(charT c, size_type pos = npos) const noexcept;
     constexpr size_type find_last_not_of(const charT* s, size_type pos,
-                                         size_type n) const;
-    constexpr size_type find_last_not_of(const charT* s, size_type pos = npos) const;
+                                         size_type n) const
+              pre (s != nullptr);
+    constexpr size_type find_last_not_of(const charT* s, size_type pos = npos) const
+              pre (s != nullptr);
 
   private:
     const_pointer data_;        // exposition only
