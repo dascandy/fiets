@@ -7,6 +7,8 @@ std::zstring_view
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
 | | Hana Dusíková <hanicka@hanicka.net> |
 | | Jeremy Rifkin <jeremy@rifkin.dev> |
+| | Marco Foco <marco.foco@gmail.com> |
+| | Alexey Shevlyakov <aleshevl@gmail.com> |
 
 # Abstract
 
@@ -101,7 +103,17 @@ This brings into reality an overload ambiguity:
 
 This is now an ambiguous function call. It is not a new problem; [Example on Godbolt](https://godbolt.org/z/c31e31fKW) shows that the exact same problem already happens with regular `std::string` and `std::string_view`. The reason is somewhat fundamental; all three types model the concept "string" and *are* ambiguous. The user should be clear about which properties of string it's expecting. Adding this new type only adds to the vocabulary the option to say "non-owning null-terminated", giving the user better choices rather than complicating it.
 
+### Deprioritizing one overload
 
+When one overload is preferred, but others should exist, the less preferred ones can be marked with `requires true`. This lifts one overload up out of the overload set for ambiguous matches, while leaving the rest to exist.
+
+### Tag type forced conversions for exact matches
+
+[https://godbolt.org/z/8qssnq8rf] and [https://godbolt.org/z/xG7955hf9] illustrate the idea of using a wrapping template to make one overload stand out.
+
+### Explicitly adding a function to disambiguate manually
+
+[https://godbolt.org/z/9zoGEh1cv] demonstrates adding an overload that matches anything that isn't an exact match, which indirects to a function that hand-picks an overload.
 
 ## Construction
 
@@ -196,21 +208,28 @@ The paper authors hold no strong opinion on whether char_traits should be kept o
 
 ```cpp
 template <size_t N>
-explicit constexpr basic_zstring_view(const charT (&str)[N]);
+consteval basic_zstring_view(const charT (&str)[N]);
 ```
 
-The advantage of adding this function is that it is a clean constructor to convert from a string literal with compile-time known size. The downsides are that it will create an interface difference between `string_view` and `zstring_view`, and that it matches runtime arrays that may differ in length from their storage size.
+The advantage of adding this function is that it is a clean constructor to convert from a string literal with compile-time known size. The downsides are that it will create an interface difference between `string_view` and `zstring_view`.
 
-# `trim(n)` functions
+## We prefer to disallow contained NULs 
 
-We don't include `remove_suffix` in the `zstring_view` interface for reasons mentioned earlier, but, it could be desirable to introduce a `trim_suffix` member function which does the same operation but returns a `string_view` instead of mutating the `zstring_view`. For completeness:
+String and string_view both support having a string with embedded NUL characters. On one hand it makes complete sense to do the same for zstring_view. On the other hand, the value of zstring_view lies in knowing it has a null terminator at `size()`, and while allowing embedded NULs would not strictly violate that - there still is a NUL terminator there - it would logically break it, as there would be a NUL before that that effectively terminates the string. 
+
+This gives rise to the possibility for bugs where strings are being used by their `strlen(x.c_str())` length, and elsewhere by their `x.size()`. These things are likely enough to have [CWE-135: Incorrect Calculation of Multi-Byte String Length](https://cwe.mitre.org/data/definitions/135.html) and [CWE-179: Incorrect Behavior Order: Early Validation](https://cwe.mitre.org/data/definitions/179.html), quote:
+
+> An attacker could include dangerous input that bypasses validation protection mechanisms which can be used to launch various attacks including injection attacks, execute arbitrary code or cause other unintended behavior.
+
+Consider the following call:
 
 ```cpp
-constexpr basic_zstring_view trim_prefix(size_type n) const;
-constexpr basic_string_view<charT, traits> trim_suffix(size_type n) const;
+std::zstring_view user_command = "ls\0rm -rf /";
+validate_command(user_command.c_str()); // older validation function that does its own strlen()
+evaluate_command(user_command); // newer function that uses user_command.size()
 ```
 
-We do not propose this in this paper, but it is a potential addition to consider for a different paper.
+We can prevent these bugs at this stage by disallowing contained NULs in the NUL-terminated string view type. But it is a breaking change to existing expectation.
 
 # Wording
 
@@ -336,10 +355,10 @@ namespace std {
 
     // [zstring.view.cons], construction and assignment
     constexpr basic_zstring_view() noexcept;
-    constexpr basic_zstring_view(const basic_zstring_view&) noexcept = default;
-    constexpr basic_zstring_view& operator=(const basic_zstring_view&) noexcept = default;
+    basic_zstring_view(const basic_zstring_view&) noexcept = default;
+    basic_zstring_view& operator=(const basic_zstring_view&) noexcept = default;
     constexpr basic_zstring_view(const charT* str);
-    constexpr basic_string_view(const charT* str, size_type len);
+    constexpr basic_zstring_view(const charT* str, size_type len);
     basic_zstring_view(nullptr_t) = delete;
 
     // [zstring.view.iterators], iterator support
