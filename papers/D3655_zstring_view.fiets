@@ -177,6 +177,90 @@ Github code search shows similar popularity between [`cstring_view`](https://git
 
 A reference implementation is at [Jeremy's Github](https://github.com/jeremy-rifkin/zstring_view).
 
+# NVIDIA Experience (moved from p3710)
+
+NVIDIA implemented `zstring_view` independently, with almost identical features. This is described in [P3710 zstring_view: a string_view with guaranteed null termination](https://wg21.link/p3710), now merged into this paper. We also implemented some additional features described in [P3566 You shall not pass char*](https://wg21.link/p3566).
+
+Ideally we wanted our input parameters to all be `string_view` and all the output parameter to be `zstring_view` (which gives more flexibility).
+In practice, there are exceptions on both sides:
+
+- When a null-terminated parameter is needed for internal reasons outside of our control, i.e. when interacting with system calls or third-party libraries, it's preferrable to have a `zstring_view` parameter.
+- When returning a part of an internal string, e.g. when extracting the file name from a full path, it's more convenient to just return a `string_view`.
+
+Nonetheless, having a large codebase, we knew we couldn't just rewrite the entire codebase to apply this change, so we used `zstring_view` as a tool for steering our codebase in the ideal direction described above.
+
+Initially, we used as `zstring_view` as a drop-in replacement for `const char*` parameters and return values of our APIs, without worrying too much wether or not the function expects a null terminator. As a sidenote, for this migration we asked our developers to be intentional in using `.data()` or `.c_str()`, and use `.data()` when a null-terminator is not expected, and only use `.c_str()` when the string is assumed to be terminated. If respected, this rule allows us to just try changing a parameted from `zstring_view` to `string_view` and verify wether or not a function is relying on some parameter to be null-terminated. This operation can be done incrementally, one function at a time.
+
+Once this was done, we started from the "deepest" functions to analyze their usage, and replace their parameters `zstring_view` to `string_view`, or rewrite them to allow for `string_view` parameters. We proceded upwards in the call chain, and did the same. Again, this can be done in multiple passes.
+
+What we observed is that, in some case, this might not only make the code safer, but also enable new optimizations.
+
+Here follows is an example of a parameter upgrade how we implemented these changes, step-by-step, with an example of how this can lead to more performant and safer code at the end of the process.
+
+
+```
+void f(const char* x) {
+  external_library::g1(x);
+}
+
+void f1() {
+  std::string a1 = "test";
+  f(a1.c_str());
+}
+
+void f2() {
+  constexpr char a2[] = "test";
+  f(a2);
+}
+
+void f3() {
+  const char* a3 = "test";
+  f(a3);
+}
+
+void f4() {
+  string_view a4 = "abcde";
+  string_view subtext = a4.substr(2, 2); // no null terminator at the end of `subtext`
+
+  f(string{subtext}); // create a temporary to add the terminator
+}
+```
+
+In this example, `external_library::g1` is a placeholder for some generic computation that happens on the string.
+
+Initially, we update the API we will change f to:
+
+```
+void f(zstring_view x) {
+  external_library::g1(x.c_str());
+}
+```
+
+All the functions now have well-defined memory ranges (no unbounded string).
+
+We can now then look for alternatives, and find out there's a different API for the `external_library::g1` we can use, e.g. `external_library::g2(char*, size_t)`, that doesn't require a null-terminated sequence.
+
+```
+void f(string_view x) {
+  external_library::g1(x.data(), x.size());
+}
+```
+
+As next step, we can check all the usages, and see if we can get rid of some extra code, for example:
+
+```
+void f4() {
+  string_view a4 = "abcde";
+  string_view subtext = a4.substr(2, 2); // no null terminator at the end of `subtext`
+
+  f(subtext); // f now accepts a string_view, no need for temporary
+}
+```
+
+This results in a better-optimized code at the end (no need for temporary `string`s).
+
+NOTE: The sequence of changes in our codebase was different, because our codebase includes the changes proposed in [P3566 You shall not pass char*](https://wg21.link/p3566), so some of the intermediate steps relying on implicit `char*` -> `string_view` and `char*` -> `zstring_view` conversions require additional changes, and intermediate steps marking conversions with the proposed `unsafe_length` tag.
+
 # Standard Library Changes
 
 There are a handful of interfaces in the standard library which take `const string&` and really want a `zstring_view`
