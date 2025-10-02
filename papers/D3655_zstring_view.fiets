@@ -1,7 +1,7 @@
 std::zstring_view
 
-| Document # | P3655R1 |
-| Date | 2025-05-18 |
+| Document # | P3655R2 |
+| Date | 2025-06-15 |
 | Targeted subgroups | LEWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
@@ -184,18 +184,18 @@ NVIDIA implemented `zstring_view` independently, with almost identical features.
 Ideally we wanted our input parameters to all be `string_view` and all the output parameter to be `zstring_view` (which gives more flexibility).
 In practice, there are exceptions on both sides:
 
-- When a null-terminated parameter is needed for internal reasons outside of our control, i.e. when interacting with system calls or third-party libraries, it's preferrable to have a `zstring_view` parameter.
+- When a null-terminated parameter is needed for internal reasons outside of our control, i.e. when interacting with system calls or third-party libraries, it's preferable to have a `zstring_view` parameter.
 - When returning a part of an internal string, e.g. when extracting the file name from a full path, it's more convenient to just return a `string_view`.
 
 Nonetheless, having a large codebase, we knew we couldn't just rewrite the entire codebase to apply this change, so we used `zstring_view` as a tool for steering our codebase in the ideal direction described above.
 
-Initially, we used as `zstring_view` as a drop-in replacement for `const char*` parameters and return values of our APIs, without worrying too much wether or not the function expects a null terminator. As a sidenote, for this migration we asked our developers to be intentional in using `.data()` or `.c_str()`, and use `.data()` when a null-terminator is not expected, and only use `.c_str()` when the string is assumed to be terminated. If respected, this rule allows us to just try changing a parameted from `zstring_view` to `string_view` and verify wether or not a function is relying on some parameter to be null-terminated. This operation can be done incrementally, one function at a time.
+Initially, we used as `zstring_view` as a drop-in replacement for `const char*` parameters and return values of our APIs, without worrying too much wether or not the function expects a null terminator. As a sidenote, for this migration we asked our developers to be intentional in using `.data()` or `.c_str()`, and use `.data()` when a null-terminator is not expected, and only use `.c_str()` when the string is required to be terminated. If respected, this rule allows us to just try changing a parameter from `zstring_view` to `string_view` and verify wether or not a function is relying on some parameter to be null-terminated. This operation can be done incrementally, one function at a time.
 
-Once this was done, we started from the "deepest" functions to analyze their usage, and replace their parameters `zstring_view` to `string_view`, or rewrite them to allow for `string_view` parameters. We proceded upwards in the call chain, and did the same. Again, this can be done in multiple passes.
+Once this was done, we started from the "deepest" functions to analyze their usage, and replace their parameters `zstring_view` to `string_view`, or rewrite them to allow for `string_view` parameters. We proceeded upwards in the call chain, and did the same. Again, this can be done in multiple passes.
 
 What we observed is that, in some case, this might not only make the code safer, but also enable new optimizations.
 
-Here follows is an example of a parameter upgrade how we implemented these changes, step-by-step, with an example of how this can lead to more performant and safer code at the end of the process.
+Here follows an example of a parameter upgrade how we implemented these changes, step-by-step, with an example of how this can lead to more performant and safer code at the end of the process.
 
 
 ```
@@ -242,7 +242,7 @@ We can now then look for alternatives, and find out there's a different API for 
 
 ```
 void f(string_view x) {
-  external_library::g1(x.data(), x.size());
+  external_library::g2(x.data(), x.size());
 }
 ```
 
@@ -257,14 +257,13 @@ void f4() {
 }
 ```
 
-This results in a better-optimized code at the end (no need for temporary `string`s).
+This results in a better-optimized code at the end (less need for temporary `string`s).
 
 NOTE: The sequence of changes in our codebase was different, because our codebase includes the changes proposed in [P3566 You shall not pass char*](https://wg21.link/p3566), so some of the intermediate steps relying on implicit `char*` -> `string_view` and `char*` -> `zstring_view` conversions require additional changes, and intermediate steps marking conversions with the proposed `unsafe_length` tag.
 
 # Standard Library Changes
 
-There are a handful of interfaces in the standard library which take `const string&` and really want a `zstring_view`
-or possibly a `string_view`. These include:
+There are a handful of interfaces in the standard library which take `const string&` and really want a `zstring_view` or possibly a `string_view`. These include:
 
 - Constructors for stdexcept types, `system_error`, `format_error`, `ios_base::failure`, and `std::filesystem::filesystem_error`
 - The `stoi` family of functions
@@ -274,7 +273,7 @@ or possibly a `string_view`. These include:
 
 There are further interfaces which take `const char*` and could have overloads taking a `zstring_view` or `string_view`.
 
-We do not propose any such changes in this paper but would like to in a follow-up paper.
+We do not propose any such changes in this paper but would like to investigate this in a follow-up paper.
 
 # Polls
 
