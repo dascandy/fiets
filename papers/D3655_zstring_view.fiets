@@ -143,10 +143,6 @@ These principles are in strict order of importance according to the paper author
 4. Principle of least surprise: Type fits between string and string_view. Calling functions that preserve null terminator return cstring_view, functions that do not return string_view. Converting from `string` to `string_view` gives the same result as conversion from `string` to `cstring_view` and on to `string_view`.
 5. Type works in the way clients of the type will expect, in that size() and strlen(c_str()) are guaranteed to give the same result.
 
-## Note on guarantees and invariants
-
-The type talks about having a "guarantee" of null termination, or an "invariant" that the string is null-terminated. These are guarantees within what it can control, which as a view type does not include the underlying storage. Considering this in a Rust-style borrow setup, it would need to borrow the underlying storage while existing to uphold these guarantees. Lacking support for such information in C++, we cannot encode it into the type nor enforce it. The only thing the type attempts to do is to carry the knowledge of null termination existing at construction, to null termination existing where the value is used, given no change of the underlying storage.
-
 ## cstring_view and string_view relation
 
 `cstring_view` should be transparently convertible to a `string_view`. There are multiple ways to create this conversion:
@@ -214,7 +210,7 @@ template<class R>
 constexpr explicit basic_cstring_view(cstring_like R&& r); // (4)
 ```
 
-This constructor has the same implication as (3) in that the range passed in must end with a nul terminator. The ability to check `data()[size()]` is rare, but is specified on `string`. If we have any other range though, they are always specified in being dereferenceable only from `0` to `size()-1`, but not at `size()`. We keep this constructor with a requirement on the type `R` that it has a `c_str` function?
+This constructor has the same implication as (3) in that the range passed in must end with a nul terminator. The ability to check `data()[size()]` is rare, but is specified on `string`. If we have any other range though, they are always specified in being dereferenceable only from `0` to `size()-1`, but not at `size()`. We keep this constructor with a requirement on the type `R` that it has a `c_str` function.
 
 ```cpp
 basic_cstring_view( std::nullptr_t ) = delete; // (5)
@@ -274,7 +270,9 @@ The rationale for this would be that a `string` can contain embedded NULs, and t
 
 ## Modifying the cstring_view or underlying storage
 
-`string_view` itself does not allow modifying the values through its interface and `cstring_view` should not deviate from this. `string_view` states that the underlying storage must outlive the `string_view` built on it, and `cstring_view` will do the same, with the addition that the null terminator that it requires may not be modified. Adding or removing a NUL inside of the string has the same behavior as it does in `string_view` - you get an embedded NUL.
+The type talks about having a "guarantee" of null termination, or an "invariant" that the string is null-terminated. These are guarantees within what it can control, which as a view type does not include the underlying storage. Considering this in a Rust-style borrow setup, it would need to borrow the underlying storage while existing to uphold these guarantees. Lacking support for such construct in C++, we cannot encode it into the type nor enforce it. The only thing the type attempts to do is to carry the knowledge of null termination existing at construction, to null termination existing where the value is used, given no change of the underlying storage.
+
+`string_view` itself does not allow modifying the values through its interface and `cstring_view` should not deviate from this. `string_view` states that the underlying storage must outlive the `string_view` built on it, and `cstring_view` does the same. `cstring_view` also requires that the null terminator that it requires may not be modified. Beyond that `cstring_view` and `string_view` are intentionally alike.
 
 ## Standard Library Changes
 
@@ -292,7 +290,7 @@ We do not propose any such changes in this paper but would like to investigate t
 
 ## Reference Implementation
 
-A reference implementation is at [Beman Project on Github](https://github.com/beman-project/cstring_view).
+A reference implementation is at [Beman Project on Github](https://github.com/bemanproject/cstring_view).
 
 # Historically relevant information
 
@@ -300,7 +298,9 @@ A reference implementation is at [Beman Project on Github](https://github.com/be
 
 Null-terminated string view types are typically named `zstring_view` (N3921, P3081, GSL) or `cstring_view` (P1402). `cstring_view` follows the `std::string::c_str()` nomenclature while `zstring_view` has some establishment and recognizability.
 
-Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing). In refreshing this paper, it appears that cstring_view has gained ~200 added results, while zstring_view only added 8, hinting at a popular preference for the former name.
+Github code search shows similar popularity between [`cstring_view`](https://github.com/search?q=%2F%5Cbcstring_view%5Cb%2F%20language%3Ac%2B%2B%20-is%3Afork&type=code) (1.2k results as of the time of writing) and [`zstring_view`](https://github.com/search?q=%2F%5Cbzstring_view%5Cb%2F+language%3Ac%2B%2B+-is%3Afork&type=code) (680 results as of the time of writing). In refreshing this paper, it appears that cstring_view has gained ~200 added results, while zstring_view only added 8, hinting at a popular preference for the former name. In the October 2025 update, cstring_view has gained another 300 results, with zstring_view gaining 208.
+
+The paper proposes cstring_view, as it has minor number advantage in every measurement so far.
 
 Refreshing the numbers for the names in June 2026 gives us 8.5k for `cstring_view` and 1.1k for `zstring_view`.
 
@@ -494,7 +494,7 @@ NOTE: The sequence of changes in our codebase was different, because our codebas
 
 # Wording
 
-Changes in [format.formatter.spec] and [string.view.general] are deltas, all subsequent are full additions.
+Changes in \[format.formatter.spec] and \[string.view.general] are deltas, all subsequent are full additions.
 
 ## [format.formatter.spec]
 
@@ -503,12 +503,14 @@ Add to 2.2:
 ```cpp
 template<class traits>
   struct formatter<basic_cstring_view<charT, traits>, charT>;
+```
 
 Add to 4.1:
 
 ```cpp
 template<class traits>
   struct formatter<basic_cstring_view<char, traits>, wchar_t>;
+```
 
 ## String View Classes [string.view]
 
@@ -516,11 +518,11 @@ template<class traits>
 
 Update as indicated:
 
-The class template basic_string_view describes an object that can refer to a constant contiguous sequence of char-like ([strings.general]) objects with the first element of the sequence at position zero. +++The class template basic_cstring_view describes an object that can refer to a constant contiguous sequence of char-like ([strings.general]) objects with the first element of the sequence at position zero, that is guaranteed to contain a null-terminator at the position `size()`.+++ In the rest of [string.view], the type of the char-like objects held in a basic_string_view +++or a `basic_cstring_view`+++ object is designated by charT.
+The class template basic_string_view describes an object that can refer to a constant contiguous sequence of char-like (\[strings.general]) objects with the first element of the sequence at position zero. +++The class template basic_cstring_view describes an object that can refer to a constant contiguous sequence of char-like (\[strings.general]) objects with the first element of the sequence at position zero, that is guaranteed to contain a null-terminator at the position `size()`.+++ In the rest of \[string.view], the type of the char-like objects held in a basic_string_view +++or a `basic_cstring_view`+++ object is designated by charT.
 
-+++For basic_string_view, [data(), data() + size()) is a valid range. For basic_cstring_view, [data(), data() + size()] is a valid range and data() + size() points at an object with value charT() (a "null terminator").+++
++++For `basic_string_view`, `[data(), data() + size())` is a valid range. For `basic_cstring_view`, `[data(), data() + size()]` is a valid range and `data() + size()` points at an object with value `charT()` (a "null terminator").+++
 
-[Note 1 : The library provides implicit conversions from const charT* and std::basic_string<charT, ...> to +++std::basic_cstring_view<charT, ...>, and implicit conversions from const char*, std::basic_string<charT, ...> and std::basic_cstring_view<charT, ...> to +++std::basic_string_view<charT, ...> so that user code can accept just std::basic_string_view<charT> +++or std::basic_cstring_view<charT> +++as a non-templated parameter wherever a sequence of characters is expected. User-defined types can define their own implicit conversions to std::basic_string_view<charT> or +++std::basic_cstring_view<charT>+++ in order to interoperate with these functions. — end note]
+\[Note: The library provides implicit conversions from const charT* and std::basic_string<charT, ...> to +++std::basic_cstring_view<charT, ...>, and implicit conversions from const char*, std::basic_string<charT, ...> and std::basic_cstring_view<charT, ...> to +++std::basic_string_view<charT, ...> so that user code can accept just std::basic_string_view<charT> +++or std::basic_cstring_view<charT> +++as a non-templated parameter wherever a sequence of characters is expected. User-defined types can define their own implicit conversions to std::basic_string_view<charT> or +++std::basic_cstring_view<charT>+++ in order to interoperate with these functions. — end note]
 
 #### Header cstring_view [string.view.cstring]
 
@@ -584,8 +586,6 @@ namespace std {
 ### Class template basic_cstring_view [string.view.cstring.template]
 
 #### General [string.view.cstring.template.general]
-
-Add this whole section
 
 ```cpp
 namespace std {
@@ -720,9 +720,9 @@ namespace std {
 constexpr basic_cstring_view() noexcept;
 ```
 
-Effects: Constructs an empty basic_cstring_view.
+Effects: Constructs an empty `basic_cstring_view`.
 
-Postconditions: size_ is 0 and data_ points to a valid empty string
+Postconditions: `size()` is `0` and `data()` points to a valid empty string
 
 Complexity: O(1).
 
@@ -731,24 +731,24 @@ Complexity: O(1).
 constexpr basic_cstring_view(const charT* str) noexcept;
 ```
 
-Preconditions: [str, str + traits::length(str)] is a valid range, str[traits::length(str)] == charT()
+Preconditions: \[str, str + `traits::length(str)`] is a valid range, `str[traits::length(str)] == charT()`
 
-Effects: Constructs a basic_cstring_view that refers to str.
+Effects: Constructs a `basic_cstring_view` that refers to str.
 
-Postconditions: size_ returns traits::length(str) and data_ returns str.
+Postconditions: `size()` returns `traits::length(str)` and `data()` returns `str`.
 
-Complexity: O(traits::length(str)).
+Complexity: O(`traits::length(str)`).
 
 
 ```cpp
 constexpr basic_cstring_view(const charT* str, size_type len) noexcept;
 ```
 
-Preconditions: [str, str + len] is a valid range, str[len] == charT().
+Preconditions: \[str, str + len] is a valid range, `str[len] == charT()`.
 
-Effects: Constructs a basic_cstring_view that refers to str.
+Effects: Constructs a `basic_cstring_view` that refers to str.
 
-Postconditions: size_ returns len and data_ returns str.
+Postconditions: `size()` returns len and `data()` returns str.
 
 Complexity: O(1).
 
@@ -769,17 +769,17 @@ Constraints:
 
 Preconditions:
 
-— [begin, end] is a valid range.
+— \[begin, end] is a valid range.
 
 — It models contiguous_iterator.
 
 — End models sized_sentinel_for<It>.
 
-— *(begin + (end - begin)) == charT()
+— `*(begin + (end - begin)) == charT()`
 
 Effects: Creates a basic_cstring_view that refers to the range from begin to end, inclusive.
 
-Postconditions: size_ returns (end - begin) and data_ returns to_address(begin).
+Postconditions: size() returns (end - begin) and data() returns to_address(begin).
 
 Throws: When and what end - begin throws.
 
@@ -794,23 +794,23 @@ Let d be an lvalue of type remove_cvref_t<R>.
 
 Constraints:
 
-— remove_cvref_t<R> is not the same type as basic_cstring_view,
+— remove_cvref_t<R> is not the same type as `basic_cstring_view`,
 
-— R models ranges::contiguous_range, ranges::sized_range and cstring_like
+— R models `ranges::contiguous_range`, `ranges::sized_range` and `cstring_like`
 
-— is_same_v<ranges::range_value_t<R>, charT> is true,
+— `is_same_v<ranges::range_value_t<R>, charT>` is true,
 
-— is_convertible_v<R, const charT*> is false, and
+— `is_convertible_v<R, const charT*>` is false, and
 
-— d.operator ::std::basic_cstring_view<charT, traits>() is not a valid expression.
+— `d.operator ::std::basic_cstring_view<charT, traits>()` is not a valid expression.
 
-Effects: Creates a basic_cstring_view that refers to the range specified by r.
+Effects: Creates a `basic_cstring_view` that refers to the range specified by r.
 
-Postconditions: size_ returns ranges::size(r) and data_ returns ranges::data(r).
+Postconditions: size() returns `ranges::size(r)` and data() returns `ranges::data(r)`.
 
-Throws: Any exception thrown by ranges::data(r) and ranges::size(r).
+Throws: Any exception thrown by `ranges::data(r)` and `ranges::size(r)`.
 
-#### Deduction guides (string.view.cstring.deduct]
+#### Deduction guides [string.view.cstring.deduct]
 
 
 ```cpp
@@ -839,28 +839,28 @@ constexpr const_iterator begin() const noexcept;
 constexpr const_iterator cbegin() const noexcept;
 ```
 
-Returns: An iterator such that addressof(*begin()) == data_.
+Returns: An iterator such that `addressof(*begin()) == data()`.
 
 ```cpp
 constexpr const_iterator end() const noexcept;
 constexpr const_iterator cend() const noexcept;
 ```
 
-Returns: begin() + size_.
+Returns: `begin() + size()`.
 
 ```cpp
 constexpr const_reverse_iterator rbegin() const noexcept;
 constexpr const_reverse_iterator crbegin() const noexcept;
 ```
 
-Returns: const_reverse_iterator(end()).
+Returns: `const_reverse_iterator(end())`.
 
 ```cpp
 constexpr const_reverse_iterator rend() const noexcept;
 constexpr const_reverse_iterator crend() const noexcept;
 ```
 
-Returns: const_reverse_iterator(begin()).
+Returns: `const_reverse_iterator(begin())`.
 
 #### Capacity [string.view.cstring.capacity]
 
@@ -882,7 +882,7 @@ Returns: The largest possible number of char-like objects that can be referred t
 [[nodiscard]] constexpr bool empty() const noexcept;
 ```
 
-Returns: size_ == 0.
+Returns: `size() == 0`.
 
 #### Element access [string.view.cstring.access]
 
@@ -891,11 +891,9 @@ Returns: size_ == 0.
 constexpr const_reference operator[](size_type pos) const;
 ```
 
-Hardened preconditions: pos <= size_ is true.
+Hardened preconditions: `pos <= size_` is true.
 
-[Note: This precondition is identical to basic_string::operator[]. — end note]
-
-Returns: data_[pos].
+Returns: `data()[pos]`.
 
 Throws: Nothing.
 
@@ -903,17 +901,17 @@ Throws: Nothing.
 constexpr const_reference at(size_type pos) const;
 ```
 
-Returns: data_[pos].
+Returns: `data()[pos]`.
 
-Throws: out_of_range if pos > size_.
+Throws: out_of_range if `pos > size()`.
 
 ```cpp
 constexpr const_reference front() const;
 ```
 
-Hardened preconditions: empty() is false.
+Hardened preconditions: `empty()` is false.
 
-Returns: data_[0].
+Returns: `data()[0]`.
 
 Throws: Nothing.
 
@@ -923,7 +921,7 @@ constexpr const_reference back() const;
 
 Hardened preconditions: empty() is false.
 
-Returns: data_[size_-1].
+Returns: `data()[size()-1]`.
 
 Throws: Nothing.
 
@@ -934,9 +932,9 @@ constexpr const_pointer c_str() const noexcept;
 
 Returns: data_.
 
-[Note: The pointer returned is safe to pass to any function expecting a null-terminated string]
+\[Note: The pointer returned is safe to pass to any function expecting a null-terminated string]
 
-Postcondition: The returned value can be dereferenced in [0, size()].
+Postcondition: The returned value can be dereferenced in \[0, size()].
 
 #### Modifiers [string.view.cstring.modifiers]
 
@@ -945,9 +943,9 @@ Postcondition: The returned value can be dereferenced in [0, size()].
 constexpr void remove_prefix(size_type n);
 ```
 
-Hardened preconditions: n <= size() is true.
+Hardened preconditions: `n <= size()` is true.
 
-Effects: Equivalent to: data_ += n; size_ -= n;
+Effects: Equivalent to: `data_ += n; size_ -= n;`
 
 ```cpp
 constexpr void swap(basic_cstring_view& s) noexcept;
@@ -964,7 +962,7 @@ constexpr size_type copy(charT* s, size_type n, size_type pos = 0) const;
 
 Let rlen be the smaller of n and size() - pos.
 
-Preconditions: [s, s + rlen) is a valid range.
+Preconditions: `[s, s + rlen)` is a valid range.
 
 Effects: Equivalent to traits::copy(s, data() + pos, rlen).
 
@@ -1000,37 +998,37 @@ Throws: out_of_range if pos > size().
 constexpr int compare(basic_string_view str) const noexcept;
 ```
 
-Returns: Equivalent to: return substr(0).compare(str);
+Returns: Equivalent to: `return substr().compare(str)`
 
 ```cpp
 constexpr int compare(size_type pos1, size_type n1, basic_string_view str) const;
 ```
 
-Effects: Equivalent to: return substr(pos1, n1).compare(str);
+Effects: Equivalent to: `return substr(pos1, n1).compare(str)`
 
 ```cpp
 constexpr int compare(size_type pos1, size_type n1, basic_string_view str, size_type pos2, size_type n2) const;
 ```
 
-Effects: Equivalent to: return substr(pos1, n1).compare(str.substr(pos2, n2));
+Effects: Equivalent to: `return substr(pos1, n1).compare(str.substr(pos2, n2))`
 
 ```cpp
 constexpr int compare(const charT* s) const;
 ```
 
-Effects: Equivalent to: return compare(basic_string_view<charT, traits>(s));
+Effects: Equivalent to: `return compare(basic_string_view<charT, traits>(s))`
 
 ```cpp
 constexpr int compare(size_type pos1, size_type n1, const charT* s) const;
 ```
 
-Effects: Equivalent to: return substr(pos1, n1).compare(basic_string_view<charT, traits>(s));
+Effects: Equivalent to: `return substr(pos1, n1).compare(basic_string_view<charT, traits>(s))`
 
 ```cpp
 constexpr int compare(size_type pos1, size_type n1, const charT* s, size_type n2) const;
 ```
 
-Effects: Equivalent to: return substr(pos1, n1).compare(basic_string_view<charT, traits>(s, n2));
+Effects: Equivalent to: `return substr(pos1, n1).compare(basic_string_view<charT, traits>(s, n2))`
 
 ```cpp
 constexpr bool starts_with(basic_string_view<charT, traits> x) const noexcept;
@@ -1038,19 +1036,19 @@ constexpr bool starts_with(basic_string_view<charT, traits> x) const noexcept;
 
 Let rlen be the smaller of size() and x.size().
 
-Effects: Equivalent to: return basic_string_view<charT, traits>(data(), rlen) == x;
+Effects: Equivalent to: `return basic_string_view<charT, traits>(data(), rlen) == x`
 
 ```cpp
 constexpr bool starts_with(charT x) const noexcept;
 ```
 
-Effects: Equivalent to: return !empty() && traits::eq(front(), x);
+Effects: Equivalent to: `return !empty() && traits::eq(front(), x)`
 
 ```cpp
 constexpr bool starts_with(const charT* x) const;
 ```
 
-Effects: Equivalent to: return starts_with(basic_string_view<charT, traits>(x));
+Effects: Equivalent to: `return starts_with(basic_string_view<charT, traits>(x))`
 
 ```cpp
 constexpr bool ends_with(basic_string_view<charT, traits> x) const noexcept;
@@ -1058,19 +1056,19 @@ constexpr bool ends_with(basic_string_view<charT, traits> x) const noexcept;
 
 Let rlen be the smaller of size() and x.size().
 
-Effects: Equivalent to: return basic_string_view(data() + (size() - rlen), rlen) == x;
+Effects: Equivalent to: `return basic_string_view(data() + (size() - rlen), rlen) == x`
 
 ```cpp
 constexpr bool ends_with(charT x) const noexcept;
 ```
 
-Effects: Equivalent to: return !empty() && traits::eq(back(), x);
+Effects: Equivalent to: `return !empty() && traits::eq(back(), x)`
 
 ```cpp
 constexpr bool ends_with(const charT* x) const
 ```
 
-Effects: Equivalent to: return ends_with(basic_string_view(x));
+Effects: Equivalent to: `return ends_with(basic_string_view(x))`
 
 ```cpp
 constexpr bool contains(basic_string_view<charT, traits> x) const noexcept;
@@ -1079,7 +1077,7 @@ constexpr bool contains(const charT* x) const
           pre (x != nullptr);
 ```
 
-Effects: Equivalent to: return find(x) != npos;
+Effects: Equivalent to: `return find(x) != npos`
 
 #### Searching [string.view.cstring.find]
 
@@ -1164,7 +1162,7 @@ namespace std {
 
 The specialization is enabled.
 
-[Note: The hash value of a string view object is equal to the hash value of the corresponding string object [basic.string.hash]. — end note]
+\[Note: The hash value of a string view object is equal to the hash value of the corresponding string object \[basic.string.hash]. — end note]
 
 ### Suffix for basic_cstring_view literals, [string.view.cstring.literals]
 

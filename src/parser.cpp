@@ -1,7 +1,7 @@
 #include "parser.h"
 #include <string_view>
 
-uint32_t Document::addReference(std::string name, std::string url) {
+uint32_t Document::addReference(std::string url, std::string name) {
   for (size_t n = 0; n < references.size(); n++) {
     if (references[n].url == url) return references[n].index;
   }
