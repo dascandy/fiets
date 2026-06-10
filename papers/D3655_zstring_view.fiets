@@ -330,12 +330,12 @@ Reasons for not allowing embedded NUL bytes:
 
 ### Proposal for embedded NUL bytes
 
-We allow and prevent embedded NUL bytes via suitable API/functions. The summary is as follows:
+In Crodyon it was polled to not support embedded NUL bytes and it got consensus against. In this revision we allow embedded NUL bytes in the type (no constrains on the values of the string) but via suitable API/functions we allow users to ensure that they have values without embedded NUL bytes. The summary is as follows:
 
 - All constructors of `cstring_view` allow embedded embedded NUL bytes
-- A method called `first_piece()`is provided that returns the first `cstring_view` without embedded NUL bytes
+- A member function `cstring_view first_piece() const`is provided that returns the first `cstring_view` without embedded NUL bytes
 - `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
-- A method called `guaranteed_without_nulls()` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
+- A member function `cstring_view& guaranteed_without_nulls() const` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
 
 Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This is intended. This means that if the precondition is not fullfiled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it.
 In a codebase where it is important to avoid and detect embedded NUL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
