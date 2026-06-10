@@ -331,10 +331,12 @@ Reasons for not allowing embedded NULL bytes:
 We allow and prevent embedded NULL bytes via suitable API/functions. The summary is as follows:
 
 - All constructors of `cstring_view` allow embedded embedded NULLs
-- A method is provided that returns the first `cstring_view` without embedded NULL bytes
-- `c_str()` returns `const char *` and it has a preconditon that the size of the `cstring_view` is equal to the value you would get if you call `strlen()` on the pointer returned by `c_str()`
+- A method called `first_piece()`is provided that returns the first `cstring_view` without embedded NULL bytes
+- `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
+- A method called `guaranteed_without_nulls()` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
 
 Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This is intended. This means that if the precondition is not fullfiled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it.
+In a codebase where it is important to avoid and detect embedded NULL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
 
 ## Lazy size calculation?
 
