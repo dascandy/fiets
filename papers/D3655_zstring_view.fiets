@@ -66,6 +66,11 @@ Initial draft
 - Recovered history & publish with normal number
 - Added information from Croydon presentation into paper
 
+## R6
+
+- Add a use case to show the need to allow NULL bytes before the terminating NULL byte
+- Add a use case to show the need to prevent NULL bytes before the terminating NULL byte
+
 # Previous Papers
 
 The idea of `zstring_view` was present even in the original paper for `string_view` (Sept 2012 - Feb 2014) [N3921](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3921.html#null-termination):
@@ -132,6 +137,54 @@ In an ideal world, we could actually fix the operating systems and third-party l
 Adding the type complicates the type system around strings by having more options for string types. This is not as much of an argument as it seems, since for each site a single type is the most appropriate, and the only places that would differ are those where the difference can make a meaningful performance impact - ie, the exact kind of tight loop where the type is useful for being able to make the difference.
 
 # Design rationale
+
+## Use cases
+
+We can see two common and perfectly valid use cases where a developer might want to use `cstring_view`. Both are quite different, and have different requirements. We believe our proposal can satisfy both of them.
+
+### String buffer + cstring_view to read from it
+
+In this scenario, the following flow in this order happens:
+
+- a user creates a `std::string` with a size that will not be modified with the purpose to be used as a buffer
+- obtains a `cstring_view` from it
+- it modifies the content of the buffer without the `cstring_view` instance being aware of it
+- it calls the cstring_view
+
+A very simplified version of such code could look like this:
+```
+#include <random>
+#include <string>
+#include <iostream>
+
+void generate_word(std::string& buffer, std::default_random_engine& random_engine){
+    std::uniform_int_distribution<int> word_size_distribution(0, buffer.size());
+    std::uniform_int_distribution<int> character_distribution('A', 'Z');
+    int word_size = word_size_distribution(random_engine);
+    for(int i = 0; i < word_size; i++){
+        buffer[i] = character_distribution(random_engine);
+    }
+    if(word_size < buffer.size()){
+        buffer[word_size] = '\0';
+    }
+}
+int main(){
+    std::random_device r;
+    std::default_random_engine engine(r());
+    std::string buffer(10, 'z');
+    std::cstring_view random_word(buffer.data(), buffer.size());
+    for(int i = 0; i < 10; i++){
+        generate_word(buffer, engine);
+        // Next line could be in a place where it does not know anything about the buffer and only has the cstring_view
+        // Instead of cout it could be provided to a C api that only accepts const char *
+        std::cout << random_word.c_str() << '\n';
+    }
+}
+```
+
+### cstring_view as a replacement to const char *
+
+`const char *` for a null-terminated C-style string has several disadvantages. Because of that, developers migrate to types with better type safety guarantees. Still at some point of the stack, a lot of C++ programs need to interop with C or the POSIX API. To do that, they need to convert this better type back/from `const char*`.
 
 ## Principles
 
