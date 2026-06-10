@@ -330,10 +330,10 @@ Reasons for not allowing embedded NUL bytes:
 
 ### Proposal for embedded NUL bytes
 
-In Crodyon it was polled to not support embedded NUL bytes and it got consensus against.
+In Croydon it was polled to not support embedded NUL bytes and it got consensus against.
 We propose to manage concerns about embedded NUL bytes at the level of values (not types), by providing a suitable API. A potential set of functions for this purpose is as follows:
 
-- All constructors of `cstring_view` allow embedded embedded NUL bytes
+- All relevant constructors of `cstring_view` allow embedded embedded NUL bytes
 - A member function `cstring_view first_piece() const`is provided that returns the first `cstring_view` without embedded NUL bytes
 - `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
 - A member function `cstring_view& guaranteed_without_nulls() const` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
