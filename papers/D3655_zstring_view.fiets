@@ -70,9 +70,9 @@ Initial draft
 
 ## R6
 
-- Add a use case to show the need to allow NULL bytes before the terminating NULL byte
-- Add a use case to show the need to prevent NULL bytes before the terminating NULL byte
-- Add a design decision on what to do with embedded NULL bytes
+- Add a use case to show the need to allow embedded NUL bytes
+- Add a use case to show the need to prevent embedded NUL bytes
+- Add a design decision on what to do with embedded NUL bytes
 
 # Previous Papers
 
@@ -294,51 +294,51 @@ The `subview` function is newly added in the 2025 Sofia meeting, which always cr
 
 `remove_suffix` changes the string in-situ, and as such is unimplementable on cstring_view. It should be a function marked as =delete with a reason pointing users to use the two-argument `substr` function instead, which returns a `string_view`.
 
-## Embedded NULL bytes
+## Embedded NUL bytes
 
-The practice of having embedded NULL bytes in a `string` or `string_view` highly depends on the use case. Let's analyze the use cases mentioned in the sections above to understand how likely is this to happen.
+The practice of having embedded NUL bytes in a `string` or `string_view` highly depends on the use case. Let's analyze the use cases mentioned in the sections above to understand how likely is this to happen.
 
 ### Use cases
 
 #### String buffer + cstring_view to read from it
 
-If we look at the `string`, it is perfectly normal to have embedded NULL bytes during the execution of the program. If we look at the `cstring_view`, what we want is to get the content until the first NULL terminating charater.
+If we look at the `string`, it is perfectly normal to have embedded NUL bytes during the execution of the program. If we look at the `cstring_view`, what we want is to get the content until the first NUL byte and consider this first NUL byte as the null terminating character.
 
 #### cstring_view as a replacement to const char *
 
-If `cstring_view` is constructed only using the pointer information, it cannot contain embedded NULL bytes unless the string that `cstring_view` is pointing to is modified.
+If `cstring_view` is constructed only using the pointer information, it cannot contain embedded NUL bytes unless the string that `cstring_view` is pointing to is modified.
 
-If `cstring_view` is constructed using the pointer information and the length, then it could contain embedded NULL bytes even though in practice we know that this is very unlikely. In the unlikely case this would happen, then the corresponding C or POSIX API would only read until the first NULL terminating character. This is something that might be surprising for the user, specially if they were not in control of the content.
+If `cstring_view` is constructed using the pointer information and the length, then it could contain embedded NUL bytes even though in practice we know that this is very unlikely. In the unlikely case this would happen, then the corresponding C or POSIX API would only read until the first NUL byte due to being considered the null terminating character. This is something that might be surprising for the user, specially if they were not in control of the content.
 
-### What can we do with embedded NULL bytes?
+### What can we do with embedded NUL bytes?
 
-Conceptual reasons for not disallowing embedded NULL bytes:
+Conceptual reasons for not disallowing embedded NUL bytes:
 
-- String might deliberately contain multiple NUL-terminated pieces.
+- String might deliberately contain multiple null terminated pieces.
 - Buffer can be modified (e.g. created all-zero first, then filled, or something like strtok).
 - Would make only some std::string values viewable while disallowing others.
 - Would create unnecessary incompatibility with `string` and `string_view`
 
-Practical reasons for not disallowing embedded NULL bytes:
+Practical reasons for not disallowing embedded NUL byte:
 
 - Very hard to enfore and reason about: the view is just a reference that doesn't own the storage, and forbidding modification of the storage seems very awkward and non-local.
 - Complexity.
 
-Reasons for not allowing embedded NULL bytes:
+Reasons for not allowing embedded NUL bytes:
 
 - Prevents at runtime getting shorter strings than actually expected (shorter than length)
 
-### Proposal for embedded NULL bytes
+### Proposal for embedded NUL bytes
 
-We allow and prevent embedded NULL bytes via suitable API/functions. The summary is as follows:
+We allow and prevent embedded NUL bytes via suitable API/functions. The summary is as follows:
 
-- All constructors of `cstring_view` allow embedded embedded NULLs
-- A method called `first_piece()`is provided that returns the first `cstring_view` without embedded NULL bytes
+- All constructors of `cstring_view` allow embedded embedded NUL bytes
+- A method called `first_piece()`is provided that returns the first `cstring_view` without embedded NUL bytes
 - `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
 - A method called `guaranteed_without_nulls()` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
 
 Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This is intended. This means that if the precondition is not fullfiled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it.
-In a codebase where it is important to avoid and detect embedded NULL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
+In a codebase where it is important to avoid and detect embedded NUL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
 
 ## Lazy size calculation?
 
