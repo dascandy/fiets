@@ -1,0 +1,62 @@
+Template for proposing a profile
+
+| Document number | D4xxxR0 |
+| Date | 2026-06-14 |
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
+| Targeted subgroups | SG23 |
+
+# Meta-introduction
+
+This paper contains as its body the template for a paper to propose a profile. It is intended as a guideline what parts to propose, important elements to mention, a template format to allow quicker reading and referencing by virtue of similarity, and as a checklist to know before submission that no important points were forgotten.
+
+# Introduction
+
+Each profile is introduced with a particular goal in mind. Explain what the profile does, what goals it sets out to achieve, what kind of effect it is expected to have on existing and new code. Explain what kind of users are being considered in proposing the profile and how they are helped by this profile.
+
+# Which profile name the changes are under
+
+Each profile needs a name. As simple as this section looks, the name must be short, clear, unambiguous, distinct and teachable. It is a good idea to include all names considered, and to highlight what the best candidates are.
+
+# Which other profiles are being included in this one, and which other profiles this one is a new part of
+
+Usually, a profile either adds restrictions, or consolidates other profiles into larger sets of profiles for easier use. In some cases, profiles require other profiles to be active for their guarantees to hold. In the case of a profile consolidating others this section is most of the content; in case of a profile needing other profiles to be active it should contain the additional profiles to be activated here so that the full guarantee holds, despite the paper only providing its own conditional guarantee.
+
+# How to teach the profile to users
+
+Each profile adds a mental load to a user to understand. Ideally, a new profile has a very short explanation that gets 90% of its meaning across to most users. Think about different users - those who have little experience with the language, those with decades of C++ experience, those with large experience in other languages but no or only outdated experience in C++. Provide examples of the benefits that the profile brings written towards each group of users.
+
+# Intended and expected scope
+
+Some profiles propose to disallow particular constructs that are either unavoidable in a small amount of code, or necessary to implement the tools that allow other code to not risk particular kinds of dangerous behavior. Enabling such a profile across all code would defeat its own purpose - the suggested replacement functionality would be made impossible by it. Indicate for the profile where it should be enabled, and in which areas or environments suppression is expected.
+
+# What feature(s) are being removed or disabled
+
+For suppressing language rules, the paper needs to describe clearly which exact rules need to be removed. The wording for the specific rules needs to be included.
+
+For removing types, the paper needs to describe what problem the types pose, how to implement the functionality that was provided by them, and how to avoid recreating the same problems in replacement code.
+
+For removing functions, the paper needs to describe what risk or problems the functions have, and which replacements should be used. Ideally the paper has concrete examples of the replacement use.
+
+For removing allowed evaluation modes for a runtime check, the paper needs to show performance impact delta when activating the profile in typical scenarios, and if known in worst-case scenarios.
+
+For removing undefined behavior, the paper needs a strong rationale explaining why the new solution is better, and measurements that show the performance impact of it is acceptable. This is different from the other items listed above as a change to remove undefined behavior cannot change on profile activation.
+
+# Which replacements are provided (potentially adding minor ones in the same paper, but preferably indirecting to another paper that has already done that)
+
+Replacement functionality can be proposed in separate papers, or in the paper providing the profile that requires it. In all cases, replacement functionality is available whether the profile is active or not.
+
+# What guarantees the profile enables in code it is active in
+
+Many profiles create a guarantee of some kind of safety property being attained in the code where it is active. A guarantee can be unconditional if the profile by its rules fully guarantees a particular concern is avoided. In some cases, such as a type-safety profile, the type safety can only be guaranteed if all objects are still live. Instead of adding complication to the type safety profile to also handle lifetime safety, it should offer a conditional guarantee of type safety, that is usable only if the same code also has a lifetime guarantee by some profile.
+
+# How the profile enables compilers and linkers to take local guarantees or information from the profile to combine into global guarantees
+
+Consider for the guarantees that your profile hopes to enable, whether they are trivially generalized from local guarantees to a global guarantee, or whether particular actions and information propagation is needed to do so. As example, consider a profile that tries to show that functions eventually reach completion. For functions that iterate or recurse into themselves, these proofs can often be created locally with advanced flow analysis. For functions that call into other functions, they can only be shown to finish if these other functions themselves finish, and do not recurse in some way back to this function. If they do recurse back to this function, more information is required for whole program analysis to be able to create such a proof. As an opposite example, consider initialization, where an attribute is created to carry such information across function boundaries, and a set of independent local proofs generalize to a global proof without any extra work.
+
+In some cases information transfer across TU boundary enables local analysis to perform a more thorough analysis that can make better, more or stronger guarantees. In these cases the papers should indicate clearly how the local analysis is to be done with the knowledge that information transfer across these boundaries is limited to the encoded information. The paper also needs to contain wording to add the specific attributes, annotations or other denotational measures to carry the information between translation units.
+
+# Which runtime checks are tied to the profile, and expected runtime overhead in representative scenarios if any
+
+A profile proposal can add runtime checks that tie in to the guarantees the profile is making. These runtime checks are always present, even if the profile is inactive or suppressed. When active, the profile can restrict the set of allowed evaluation semantics on the runtime checks to exclude some, in effect requiring the checks to use one of the remaining semantics. As this is the only part of a profile that can add overhead on activation, it is preferred to have a chapter that enumerates specifically which checks are being switched, so that users know what to expect.
+
+

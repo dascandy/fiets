@@ -1,0 +1,41 @@
+On activating a profile
+
+| Document number | D4xxxR0 |
+| Date | 2026-06-14 |
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
+| Targeted subgroups | SG23 |
+
+# Introduction
+
+Profiles being active has a distinct effect on a translation unit being compiled. When contemplating the effect it has on a translation unit, users often perceive everything being proposed in a profile paper to be done only when the profile is active, leading to common misconceptions about what switching a profile can do. Terms I have heard from a dozen different interactions are dialecting, epochs and subset-of-a-superset. This paper defines what profiles can and cannot do, and what activating a profile can and cannot do, in the view of its authors. The content below, other than the "in short" section, is intended for the editor to editorially format as desired and be added to P4400, as guidance on what profiles can and cannot do.
+
+# In short
+
+- A profile being active means that the things it removes from language or library are removed, it means that the runtime checks it affects are restricted in their evaluation modes, and that the analysis results it defines are a source of information that can make a translation unit ill-formed.
+- A profile being inactive means it has not removed anything from the language or library, it does not affect any runtime checks, and it cannot make a program ill-formed.
+- A profile being active or not has zero impact on the features being added to the language or library, the runtime checks it adds, and any newly defined behavior. Whether or not the compiler performs the analyses indicated by the profile is not specified; it may still perform the analysis for other reasons, and can potentially issue diagnostics on found constructs.
+
+# What a profile can do
+
+A profile in its introduction should explain to us what its intent is. To accomplish this intent, it employs 5 different tools: Adding features to the language or library (1), removing features from the language or library (2), adding runtime checks to function entrypoints, function exit points, and arbitrary points in a function (3), adding defined forms of analysis (4), and changing the meaning of erroneous or undefined behavior. When discussing what a profile can do, many people are confused by which of these things are switched when a profile is active or inactive.
+
+A profile should for all well-defined programs result in the program doing the same thing. Profiles cannot change the meaning of something that is currently well-defined.
+
+This implies already that part of what is being introduced by a profile, is not affected by whether the profile is active. These two things have to be understood to be separate to understand what activating a profile does.
+
+1. Features added to the language or library are always present. They cannot need the profile to be active to be available, and cannot change meaning when the profile is activated or deactivated.
+2. Features removed from the language or library are removed only when the profile is active. This is the one of the primary way a profile's activation acts on the translation unit in question. Other papers can propose to completely remove something that a profile would profile-remove. In that case, when such a paper is passed, the profile no longer needs to perform any action - its goal of activation is already achieved for that thing.
+3. The runtime checks being added by a profile are always present, and set to allow any evaluation mode, with the default being to ignore them entirely. The compiler may, and is encouraged to, read and validate that they are syntactically and semantically valid, but may not derive information from them, nor emit runtime overhead. The profile's activation restricts the set of allowable evaluation modes, typically to exclude nonterminating modes. In that case, the compiler selects from the remaining modes any eligible one according to other guidance from the user. As profiles can only remove, they remain orthogonal and combine trivially - all modes that are removed by any active profile are removed from the set of allowed modes, and as usual, if no valid option remains the program is ill-formed.
+4. The analysis being added by a profile is required to be performed only if the profile is active. As additional analysis will always have a performance impact and can flag constructs that, while risky or error-prone, are not ill-formed according to the base language, users need to retain a way that does not perform the analysis or at the very least, does not make a program ill-formed if the analysis indicates that the profile's guarantees are not being met.
+5. If a profile defines behavior for an erroneous or undefined behavior, that change in behavior is not contingent on the profile being active. It is a proposed change to the base language. Two profiles proposing to change the meaning of an erroneous or undefined behavior in incompatible ways conflict and cannot be merged into the standard without prior resolution.
+
+# Glossary of words
+
+Active profile - A region of code in which the restrictions and checks specified by a profile are performed. 
+Base language - the programming language C++ as specified in ISO14882 at its most recent version. Term used to contrast to "base language with active profiles" and "dialect"
+Dialect - A language that is not strictly a subset of the base language, typically by redefining the meaning of a well-defined construct.
+Erroneous behavior - Behavior that is not well-defined, but that has a well-defined fallback
+Undefined behavior - Behavior that does not have a definition in the base language, or that is explicitly defined as undefined.
+Well-defined behavior - Behavior that software can rely on to perform exactly as specified in all programs, portably.
+
+
