@@ -1,7 +1,7 @@
 std::cstring_view
 
-| Document # | P3655R5 |
-| Date | 2026-06-08 |
+| Document # | P3655R6 |
+| Date | 2026-06-10 |
 | Targeted subgroups | LEWG, LWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
@@ -9,6 +9,8 @@ std::cstring_view
 | | Jeremy Rifkin <jeremy@rifkin.dev> |
 | | Marco Foco <marco.foco@gmail.com> |
 | | Alexey Shevlyakov <aleshevl@gmail.com> |
+| | Thomas Köppe <tkoeppe@google.com> |
+| | Xavier Bonaventura <xavier.bonaventura@bmw.de> |
 
 # Abstract
 
@@ -65,6 +67,12 @@ Initial draft
 
 - Recovered history & publish with normal number
 - Added information from Croydon presentation into paper
+
+## R6
+
+- Add a use case to show the need to allow embedded NUL bytes
+- Add a use case to show the need to prevent embedded NUL bytes
+- Add a design decision on what to do with embedded NUL bytes
 
 # Previous Papers
 
@@ -132,6 +140,54 @@ In an ideal world, we could actually fix the operating systems and third-party l
 Adding the type complicates the type system around strings by having more options for string types. This is not as much of an argument as it seems, since for each site a single type is the most appropriate, and the only places that would differ are those where the difference can make a meaningful performance impact - ie, the exact kind of tight loop where the type is useful for being able to make the difference.
 
 # Design rationale
+
+## Use cases
+
+We can see two common and perfectly valid use cases where a developer might want to use `cstring_view`. Both are quite different, and have different requirements. We believe our proposal can satisfy both of them.
+
+### String buffer + cstring_view to read from it
+
+In this scenario, the following flow in this order happens:
+
+- a user creates a `std::string` with a size that will not be modified with the purpose to be used as a buffer
+- obtains a `cstring_view` from it
+- it modifies the content of the buffer without the `cstring_view` instance being aware of it
+- it calls the cstring_view
+
+A very simplified version of such code could look like this:
+```
+#include <random>
+#include <string>
+#include <iostream>
+
+void generate_word(std::string& buffer, std::default_random_engine& random_engine){
+    std::uniform_int_distribution<int> word_size_distribution(0, buffer.size());
+    std::uniform_int_distribution<int> character_distribution('A', 'Z');
+    int word_size = word_size_distribution(random_engine);
+    for(int i = 0; i < word_size; i++){
+        buffer[i] = character_distribution(random_engine);
+    }
+    if(word_size < buffer.size()){
+        buffer[word_size] = '\0';
+    }
+}
+int main(){
+    std::random_device r;
+    std::default_random_engine engine(r());
+    std::string buffer(10, 'z');
+    std::cstring_view random_word(buffer.data(), buffer.size());
+    for(int i = 0; i < 10; i++){
+        generate_word(buffer, engine);
+        // Next line could be in a place where it does not know anything about the buffer and only has the cstring_view
+        // Instead of cout it could be provided to a C api that only accepts const char *
+        std::cout << random_word.c_str() << '\n';
+    }
+}
+```
+
+### cstring_view as a replacement to const char *
+
+`const char *` for a null-terminated C-style string has several disadvantages. Because of that, developers migrate to types with better type safety guarantees. Still at some point of the stack, a lot of C++ programs need to interop with C or the POSIX API. To do that, they need to convert this better type back/from `const char*`.
 
 ## Principles
 
@@ -240,15 +296,50 @@ The `subview` function is newly added in the 2025 Sofia meeting, which always cr
 
 ## Embedded NUL bytes
 
-The practice of having an embedded NUL character in a `string` or `string_view` is very uncommon, and many developers do not consider such strings when writing their code. The use case of having a null-terminated string is much more common, in particular in interaction with C APIs (such as OS APIs, things like the Yubico libfido2 library, libsqlite and others). We have the option of forbidding and/or checking for embedded NULs in `cstring_view`.
+The practice of having embedded NUL bytes in a `string` or `string_view` highly depends on the use case. Let's analyze the use cases mentioned in the sections above to understand how likely is this to happen.
 
-+ Prevents runtime shorter actual string length
-- Creates unnecessary incompatibility with `string` and `string_view`
-- Makes conversion from `string` to `string_view` different from conversion from `string` through `cstring_view` to `string_view`.
-- Adds an O(n) check to all O(1) constructor
-- Actual prevalence of problem being prevented is minimal
+### Use cases
 
-We do not propose to forbid embedded NUL bytes, keeping the type aligned with `string` and `string_view`. The existence of embedded NUL bytes is a separate topic and should be handled in a separate paper. Note that even the C++ standard itself has embedded NULs in some of its `string` values, for example in `[facet.numpunct.virtuals]/3 do_grouping`.
+#### String buffer + cstring_view to read from it
+
+If we look at the `string`, it is perfectly normal to have embedded NUL bytes during the execution of the program. If we look at the `cstring_view`, what we want is to get the content until the first NUL byte and consider this first NUL byte as the null terminating character.
+
+#### cstring_view as a replacement to const char *
+
+If `cstring_view` is constructed only using the pointer information, it cannot contain embedded NUL bytes unless the string that `cstring_view` is pointing to is modified.
+
+If `cstring_view` is constructed using the pointer information and the length, then it could contain embedded NUL bytes even though in practice we know that this is very unlikely. In the unlikely case this would happen, then the corresponding C or POSIX API would only read until the first NUL byte due to being considered the null terminating character. This is something that might be surprising for the user, specially if they were not in control of the content.
+
+### What can we do with embedded NUL bytes?
+
+Conceptual reasons for not disallowing embedded NUL bytes:
+
+- String might deliberately contain multiple null terminated pieces.
+- Buffer can be modified (e.g. created all-zero first, then filled, or something like strtok).
+- Would make only some std::string values viewable while disallowing others.
+- Would create unnecessary incompatibility with `string` and `string_view`
+
+Practical reasons for not disallowing embedded NUL byte:
+
+- Very hard to enfore and reason about: the view is just a reference that doesn't own the storage, and forbidding modification of the storage seems very awkward and non-local.
+- Complexity.
+
+Reasons for not allowing embedded NUL bytes:
+
+- Prevents at runtime getting shorter strings than actually expected (shorter than length)
+
+### Proposal for embedded NUL bytes
+
+In Croydon it was polled to not support embedded NUL bytes and it got consensus against.
+We propose to manage concerns about embedded NUL bytes at the level of values (not types), by providing a suitable API. A potential set of functions for this purpose is as follows:
+
+- All relevant constructors of `cstring_view` allow embedded embedded NUL bytes
+- A member function `cstring_view first_piece() const`is provided that returns the first `cstring_view` without embedded NUL bytes
+- `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
+- A member function `cstring_view& guaranteed_without_nulls() const` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
+
+Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This is intended. This means that if the precondition is not fullfiled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it.
+In a codebase where it is important to avoid and detect embedded NUL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
 
 ## Lazy size calculation?
 
