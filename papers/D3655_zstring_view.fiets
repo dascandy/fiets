@@ -1,7 +1,7 @@
 std::cstring_view
 
 | Document # | P3655R6 |
-| Date | 2026-06-10 |
+| Date | 2026-10-13 |
 | Targeted subgroups | LEWG, LWG |
 | Ship vehicle | C++29 |
 | Reply-to | Peter Bindels <dascandy@gmail.com> |
