@@ -17,7 +17,7 @@ Profiles being active has a distinct effect on a translation unit being compiled
 
 # What a profile can do
 
-A profile in its introduction should explain to us what its intent is. To accomplish this intent, it employs 5 different tools: Adding features to the language or library (1), removing features from the language or library (2), adding runtime checks to function entrypoints, function exit points, and arbitrary points in a function (3), adding defined forms of analysis (4), and changing the meaning of erroneous or undefined behavior. When discussing what a profile can do, many people are confused by which of these things are switched when a profile is active or inactive.
+A profile in its introduction should explain to us what its intent is. To accomplish this intent, it employs 5 different tools: Adding features to the language or library (1), removing features from the language or library (2), adding runtime checks to function entrypoints, function exit points, and arbitrary points in a function (3), adding defined forms of analysis (4), and changing the meaning of erroneous or undefined behavior (5). When discussing what a profile can do, many people are confused by which of these things are switched when a profile is active or inactive, and which are only being proposed by a profile and added to the base language, regardless of whether a profile is active or inactive.
 
 A profile should for all well-defined programs result in the program doing the same thing. Profiles cannot change the meaning of something that is currently well-defined.
 
@@ -31,11 +31,13 @@ This implies already that part of what is being introduced by a profile, is not 
 
 # Glossary of words
 
-Active profile - A region of code in which the restrictions and checks specified by a profile are performed. 
-Base language - the programming language C++ as specified in ISO14882 at its most recent version. Term used to contrast to "base language with active profiles" and "dialect"
-Dialect - A language that is not strictly a subset of the base language, typically by redefining the meaning of a well-defined construct.
-Erroneous behavior - Behavior that is not well-defined, but that has a well-defined fallback
-Undefined behavior - Behavior that does not have a definition in the base language, or that is explicitly defined as undefined.
-Well-defined behavior - Behavior that software can rely on to perform exactly as specified in all programs, portably.
+| Term | Definition |
+|-|-|
+| Active profile | A region of code in which the restrictions and checks specified by a profile are performed.  |
+| Base language | the programming language C++ as specified in ISO14882 at its most recent version. Term used to contrast to "base language with active profiles" and "dialect" |
+| Dialect | A language that is not strictly a subset of the base language, typically by redefining the meaning of a well-defined construct. |
+| Erroneous behavior | Behavior that is not well-defined, but that has a well-defined fallback |
+| Undefined behavior | Behavior that does not have a definition in the base language, or that is explicitly defined as undefined. |
+| Well-defined behavior | Behavior that software can rely on to perform exactly as specified in all programs, portably. |
 
 
