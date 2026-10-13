@@ -73,6 +73,8 @@ Initial draft
 - Add a use case to show the need to allow embedded NUL bytes
 - Add a use case to show the need to prevent embedded NUL bytes
 - Add a design decision on what to do with embedded NUL bytes
+- Minor technical and typo fixes
+- Renamed cstring_like to ntcts, as the standard already uses that name for exactly what it is
 
 # Previous Papers
 
@@ -194,7 +196,7 @@ int main(){
 These principles are in strict order of importance according to the paper authors. All implementation choices below should reflect these principles.
 
 1. It must be a non-allocating type that provides a type-system propagating annotation of having a null terminator at the end.
-2. Type carries the at-creation checked existence of a null terminator at size() until its use. If it cannot guarantee it for some operation, it should fail to compile at the step where the guarantee is potentially lost.
+2. The class maintains the invariant that, unless the characters are modified externally, it contains a null terminator just after the last string character. If some operation, such as remove_suffix, would result in violating this invariant, the design should cause a compile error.
 3. Type works identical to `string_view` and `string` where possible, similar where feasible and fail to compile if neither of those can be done.
 4. Principle of least surprise: Type fits between string and string_view. Calling functions that preserve null terminator return cstring_view, functions that do not return string_view. Converting from `string` to `string_view` gives the same result as conversion from `string` to `cstring_view` and on to `string_view`.
 5. Type works in the way clients of the type will expect, in that size() and strlen(c_str()) are guaranteed to give the same result.
@@ -262,8 +264,8 @@ constexpr basic_cstring_view(It begin, End end); // (3)
 This constructor looks more difficult to support, but `string_view`'s requirements on this constructor make it possible to support in the same fashion. From the action of creating a `cstring_view` we get the implication from the user that the iterators are contiguous and point to a sized range, and that it must be nul-terminated. We specify the contract that `*(begin + (end - begin)) == '\0'`, and that the contiguous range specified from begin must be dereferenceable in `[begin ... (begin + (end - begin))]`.
 
 ```cpp
-template<class R>
-constexpr explicit basic_cstring_view(cstring_like R&& r); // (4)
+template<ntcts R>
+constexpr explicit basic_cstring_view(R&& r); // (4)
 ```
 
 This constructor has the same implication as (3) in that the range passed in must end with a nul terminator. The ability to check `data()[size()]` is rare, but is specified on `string`. If we have any other range though, they are always specified in being dereferenceable only from `0` to `size()-1`, but not at `size()`. We keep this constructor with a requirement on the type `R` that it has a `c_str` function.
@@ -274,7 +276,7 @@ basic_cstring_view( std::nullptr_t ) = delete; // (5)
 
 We should not support constructing a string from nullptr. This constructor already exists in `string_view`.
 
-## Member functions on `string_view` that return a `string_view`
+## Member functions on `cstring_view` that return a `string_view`
 
 In some cases the functions can be replicated on `cstring_view` with the return type being a `cstring_view`, while in some cases the return type loses the ability to guarantee null termination, and should still return a `string_view`. The types are entangled. Note that the user can always treat the return values as-if they were string_view as the type is implicitly convertible; this is strictly giving the user more expressivity and stronger guarantees rather than less.
 
@@ -618,12 +620,24 @@ The class template basic_string_view describes an object that can refer to a con
 
 \[Note: The library provides implicit conversions from const charT* and std::basic_string<charT, ...> to +++std::basic_cstring_view<charT, ...>, and implicit conversions from const char*, std::basic_string<charT, ...> and std::basic_cstring_view<charT, ...> to +++std::basic_string_view<charT, ...> so that user code can accept just std::basic_string_view<charT> +++or std::basic_cstring_view<charT> +++as a non-templated parameter wherever a sequence of characters is expected. User-defined types can define their own implicit conversions to std::basic_string_view<charT> or +++std::basic_cstring_view<charT>+++ in order to interoperate with these functions. — end note]
 
-#### Header cstring_view [string.view.cstring]
+### Concept ntcts [concept.ntcts]
+
+```cpp
+  template<typename T>
+  concept ntcts = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
+```
+
+T models `ntcts` ([defns.ntcts]) only if
+  - T::value_type exists
+  - c_str() returns a pointer to const T::value_type
+  - c_str()[size()] == '\0'
+
+### Header cstring_view [string.view.cstring]
 
 ```cpp
 namespace std {
   template<typename T>
-  concept cstring_like = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
+  concept ntcts = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
 
   // [string.view.cstring_view.template], class template basic_cstring_view
   template<class charT, class traits = char_traits<charT>>
@@ -677,9 +691,9 @@ namespace std {
 }
 ```
 
-### Class template basic_cstring_view [string.view.cstring.template]
+#### Class template basic_cstring_view [string.view.cstring.template]
 
-#### General [string.view.cstring.template.general]
+##### General [string.view.cstring.template.general]
 
 ```cpp
 namespace std {
@@ -709,8 +723,8 @@ namespace std {
     constexpr basic_cstring_view(const charT* str, size_type len) noexcept;
     template<class It, class End>
     constexpr basic_cstring_view(It begin, End end);
-    template<class R>
-    constexpr basic_cstring_view(cstring_like R&& r);
+    template<ntcts R>
+    constexpr basic_cstring_view(R&& r);
 
     // [string.view.cstring.iterators], iterator support
     constexpr const_iterator begin() const noexcept;
@@ -814,7 +828,6 @@ namespace std {
 
 #### Construction and assignment [string.view.cstring.cons]
 
-
 ```cpp
 constexpr basic_cstring_view() noexcept;
 ```
@@ -885,8 +898,8 @@ Throws: When and what end - begin throws.
 Complexity: O(1).
 
 ```cpp
-template<class R>
-constexpr basic_cstring_view(cstring_like R&& r);
+template<ntcts R>
+constexpr basic_cstring_view(R&& r);
 ```
 
 Let d be an lvalue of type remove_cvref_t<R>.
@@ -895,7 +908,7 @@ Constraints:
 
 — remove_cvref_t<R> is not the same type as `basic_cstring_view`,
 
-— R models `ranges::contiguous_range`, `ranges::sized_range` and `cstring_like`
+— R models `ranges::contiguous_range`, `ranges::sized_range` and `ntcts`
 
 — `is_same_v<ranges::range_value_t<R>, charT>` is true,
 
@@ -924,11 +937,11 @@ Constraints:
 — End satisfies sized_sentinel_for<It>.
 
 ```cpp
-template<class R>
-basic_cstring_view(cstring_like R&&) -> basic_cstring_view<ranges::range_value_t<R>>;
+template<ntcts R>
+basic_cstring_view(R&&) -> basic_cstring_view<ranges::range_value_t<R>>;
 ```
 
-Constraints: R satisfies ranges::contiguous_range and cstring_like
+Constraints: R satisfies ranges::contiguous_range and ntcts
 
 #### Iterator support [string.view.cstring.iterators]
 
