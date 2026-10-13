@@ -616,9 +616,10 @@ template<class traits>
 ```
 
 T models `ntcts` ([defns.ntcts]) only if
-  - T::value_type exists
-  - c_str() returns a pointer to const T::value_type
-  - c_str()[size()] == '\0'
+
+- T::value_type exists
+- `c_str()` returns a pointer to `const T::value_type`
+- `c_str()[size()] == '\0'`
 
 ## String View Classes [string.view]
 
