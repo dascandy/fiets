@@ -63,12 +63,12 @@ Initial draft
 - Change deduction guides to refer to basic_cstring_view
 - Update inconsistent wording
 
-## R5
+## R5, June 2026
 
 - Recovered history & publish with normal number
 - Added information from Croydon presentation into paper
 
-## R6
+## R6, October 2026
 
 - Add a use case to show the need to allow embedded NUL bytes
 - Add a use case to show the need to prevent embedded NUL bytes
@@ -330,16 +330,19 @@ Reasons for not allowing embedded NUL bytes:
 
 ### Proposal for embedded NUL bytes
 
-In Croydon it was polled to not support embedded NUL bytes and it got consensus against.
+The question was asked in Croydon whether the paper should be changed to *actively reject* embedded '\0', and that did not get consensus. The vote was split however - 3/5/2/5/10. Depending on who was asked, embedded NULs are either a security hazard that must be guarded against, an uncommon scenario that would redoce performance to check, or a must-support use case. This explains the spread.
+
 We propose to manage concerns about embedded NUL bytes at the level of values (not types), by providing a suitable API. A potential set of functions for this purpose is as follows:
 
-- All relevant constructors of `cstring_view` allow embedded embedded NUL bytes
-- A member function `cstring_view first_piece() const`is provided that returns the first `cstring_view` without embedded NUL bytes
-- `c_str()` returns `const char *` and it has a preconditon that `my_view.first_piece().size() == my_view.size()`
-- A member function `cstring_view& guaranteed_without_nulls() const` is provided that returns the exact same object but it has a hardened precondition that `my_view.first_piece().size() == my_view.size()`.
+- All relevant constructors of `cstring_view` allow embedded NUL bytes
+- A member function `bool has_nulls() const` is provided that returns whether the string has embedded NUL bytes. It runs in O(n) in terms of length of the string.
+- A member function `cstring_view first_piece() const` is provided that returns the first `cstring_view` without embedded NUL bytes by truncating to the first found NUL byte.
+- `c_str()` returns `const char *` and it has a precondition that `not has_nulls()`.
+- A member function `cstring_view& guaranteed_without_nulls() const` is provided that returns itself, with a hardened precondition that `not has_nulls()`.
 
-Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This is intended. This means that if the precondition is not fullfiled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it.
-In a codebase where it is important to avoid and detect embedded NUL bytes, a user can just use `guaranteed_without_nulls()` if it just wants to enforce, or it can do `my_view.first_piece().size() == my_view.size()` to detect it programmatically.
+Notice that the proposal is for `c_str()` to have a precondition and not a hardened precondition. This means that if the precondition is not fulfilled, then the call to `c_str()` is undefined behavior. However, the fact that it is a precondition, it allows tools like sanitizers to check for it and diagnose it. It cannot be a hardened precondition as it would make c_str() run in O(n) instead of O(1) breaking its performance contract, which hardened preconditions may not do. 
+
+In a codebase where it is important to avoid and detect embedded NUL bytes, a user can use `guaranteed_without_nulls()` if it just wants to enforce, or it can check `has_nulls()` to detect it programmatically.
 
 ## Lazy size calculation?
 
@@ -361,7 +364,7 @@ The rationale for this would be that a `string` can contain embedded NULs, and t
 
 ## Modifying the cstring_view or underlying storage
 
-The type talks about having a "guarantee" of null termination, or an "invariant" that the string is null-terminated. These are guarantees within what it can control, which as a view type does not include the underlying storage. Considering this in a Rust-style borrow setup, it would need to borrow the underlying storage while existing to uphold these guarantees. Lacking support for such construct in C++, we cannot encode it into the type nor enforce it. The only thing the type attempts to do is to carry the knowledge of null termination existing at construction, to null termination existing where the value is used, given no change of the underlying storage.
+The type talks about having a "guarantee" of null termination, or an "invariant" that the string is null-terminated. These are guarantees within what it can control, which as a view type does not include the underlying storage. Considering this in a Rust-style borrow setup, it would need to borrow the underlying storage while existing to uphold these guarantees. Lacking support for such construct in C++, we cannot encode it into the type nor enforce it. The only thing the type attempts to do is to carry the knowledge of null termination existing at the location `size()` at construction, to null termination existing at `size()` where the value is used, given no change of the underlying storage.
 
 `string_view` itself does not allow modifying the values through its interface and `cstring_view` should not deviate from this. `string_view` states that the underlying storage must outlive the `string_view` built on it, and `cstring_view` does the same. `cstring_view` also requires that the null terminator that it requires may not be modified. Beyond that `cstring_view` and `string_view` are intentionally alike.
 
@@ -797,6 +800,11 @@ namespace std {
                                          size_type n) const;
     constexpr size_type find_last_not_of(const charT* s, size_type pos = npos) const;
 
+    // [string.view.cstring.null], embedded null management
+    constexpr bool has_nulls() const noexcept;
+    constexpr cstring_view first_piece() const noexcept;
+    constexpr cstring_view& guaranteed_without_nulls() const noexcept;
+
   private:
     const_pointer data_;        // exposition only
     size_type size_;            // exposition only
@@ -1021,6 +1029,8 @@ constexpr const_pointer data() const noexcept;
 constexpr const_pointer c_str() const noexcept;
 ```
 
+Precondition: !has_nulls()
+
 Returns: data_.
 
 \[Note: The pointer returned is safe to pass to any function expecting a null-terminated string]
@@ -1226,6 +1236,34 @@ template<class charT, class traits>
 ```
 
 Returns: Equivalent to: return lhs.substr().operator<=>(rhs);
+
+### Embedded null management, [string.view.cstring.null]
+
+```cpp
+constexpr bool has_nulls() const noexcept;
+```
+
+Returns: Whether any of the values in the `cstring_view` is equal to '\0'
+
+Complexity: O(n).
+
+```cpp
+constexpr cstring_view first_piece() const noexcept;
+```
+
+Returns: The same string value, terminated at the first '\0' inside the string if any, and at the guaranteed null terminator otherwise
+
+Complexity: O(n).
+
+```cpp
+constexpr cstring_view& guaranteed_without_nulls() const noexcept;
+```
+
+Hardened precondition: !has_nulls()
+
+Equivalent to: return *this;
+
+Complexity: O(n).
 
 ### Inserters and extractors, [string.view.cstring.io]
 
