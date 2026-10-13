@@ -330,7 +330,7 @@ Reasons for not allowing embedded NUL bytes:
 
 ### Proposal for embedded NUL bytes
 
-The question was asked in Croydon whether the paper should be changed to *actively reject* embedded '\0', and that did not get consensus. The vote was split however - 3/5/2/5/10. Depending on who was asked, embedded NULs are either a security hazard that must be guarded against, an uncommon scenario that would redoce performance to check, or a must-support use case. This explains the spread.
+The question was asked in Croydon whether the paper should be changed to *actively reject* embedded '\0', and that did not get consensus. The vote was split however - 3/5/2/5/10. Depending on who was asked, embedded NULs are either a security hazard that must be guarded against, an uncommon scenario that would reduce performance to check, or a must-support use case. This explains the spread.
 
 We propose to manage concerns about embedded NUL bytes at the level of values (not types), by providing a suitable API. A potential set of functions for this purpose is as follows:
 
