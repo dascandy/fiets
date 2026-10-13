@@ -608,6 +608,18 @@ template<class traits>
   struct formatter<basic_cstring_view<char, traits>, wchar_t>;
 ```
 
+## Concept ntcts [concept.ntcts]
+
+```cpp
+  template<typename T>
+  concept ntcts = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
+```
+
+T models `ntcts` ([defns.ntcts]) only if
+  - T::value_type exists
+  - c_str() returns a pointer to const T::value_type
+  - c_str()[size()] == '\0'
+
 ## String View Classes [string.view]
 
 ### General [string.view.general]
@@ -619,18 +631,6 @@ The class template basic_string_view describes an object that can refer to a con
 +++For `basic_string_view`, `[data(), data() + size())` is a valid range. For `basic_cstring_view`, `[data(), data() + size()]` is a valid range and `data() + size()` points at an object with value `charT()` (a "null terminator").+++
 
 \[Note: The library provides implicit conversions from const charT* and std::basic_string<charT, ...> to +++std::basic_cstring_view<charT, ...>, and implicit conversions from const char*, std::basic_string<charT, ...> and std::basic_cstring_view<charT, ...> to +++std::basic_string_view<charT, ...> so that user code can accept just std::basic_string_view<charT> +++or std::basic_cstring_view<charT> +++as a non-templated parameter wherever a sequence of characters is expected. User-defined types can define their own implicit conversions to std::basic_string_view<charT> or +++std::basic_cstring_view<charT>+++ in order to interoperate with these functions. — end note]
-
-### Concept ntcts [concept.ntcts]
-
-```cpp
-  template<typename T>
-  concept ntcts = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
-```
-
-T models `ntcts` ([defns.ntcts]) only if
-  - T::value_type exists
-  - c_str() returns a pointer to const T::value_type
-  - c_str()[size()] == '\0'
 
 ### Header cstring_view [string.view.cstring]
 
@@ -1067,7 +1067,7 @@ constexpr void swap(basic_cstring_view& s) noexcept;
 
 Effects: Exchanges the values of *this and s.
 
-#### String operations [string.view.cstring_view.ops]
+#### String operations [string.view.cstring.ops]
 
 
 ```cpp
