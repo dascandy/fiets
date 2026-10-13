@@ -78,7 +78,7 @@ Initial draft
 
 The idea of `cstring_view` was present even in the original paper for `string_view` (Sept 2012 - Feb 2014) [N3921](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3921.html#null-termination):
 
-> Another option would be to define a separate cstring_view class to represent null-terminated strings and let it decay to string_view when necessary. That's plausible but not part of this proposal.
+> Another option would be to define a separate zstring_view class to represent null-terminated strings and let it decay to string_view when necessary. That's plausible but not part of this proposal.
 
 An attempt was made in Feb 2019 to concretely propose the type (renamed to `cstring_view`) with [P1402](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1402r0.pdf), but it failed to gain consensus in LEWGI at [Kona](https://wiki.edg.com/bin/view/Wg21kona2019/P1402). In fact, the discussion there concluded with "CONSENSUS: We will not pursue P1402R0 or this problem space." It is also worth noting that contracts were briefly contemplated in the minutes as a way of addressing the problem, however, contracts can't check for a null character safely as it wouldn't be part of the view. Similarly, other runtime checks for `string_view` null-termination are off the table.
 
