@@ -1,7 +1,7 @@
 Template for proposing a profile
 
-| Document number | D4xxxR0 |
-| Date | 2026-06-14 |
+| Document number | D4315R0 |
+| Date | 2026-07-14 |
 | Reply-to | Peter Bindels <cpp@dascandy.nl> |
 | Targeted subgroups | SG23 |
 
@@ -65,7 +65,7 @@ Consider for the guarantees that your profile hopes to enable, whether they are 
 
 In some cases information transfer across TU boundary enables local analysis to perform a more thorough analysis that can make better, more or stronger guarantees. In these cases the papers should indicate clearly how the local analysis is to be done with the knowledge that information transfer across these boundaries is limited to the encoded information. The paper also needs to contain wording to add the specific attributes, annotations or other denotational measures to carry the information between translation units.
 
-## What guarantees can be provided given that the profile is not active in parts of the program
+# Which runtime checks are tied to the profile, and expected compile time and runtime overhead in representative scenarios if any
 
 Guarantees are usually what we want to have - the certainty that a particular kind of behavior does not occur. As indicated though, some profiles remove fundamental ability to express, where we want to ensure that all of the program uses a specific implementation of the undesirable behavior, so that we can reason about the use of the abstraction knowing there is no other instance of that behavior, while still allowing the undesirable behavior in the implementation of that abstraction. 
 

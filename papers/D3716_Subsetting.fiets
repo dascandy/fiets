@@ -1,50 +1,24 @@
 Subsetting
 
-
-| Document # | D3716R0 |
-| Date | 2025-05-19 |
-| Targeted subgroups | EWG, SG23 |
+| Document # | P3716R1 |
+| Date | 2026-07-14 |
+| Targeted subgroups | SG23 |
 | Ship vehicle | C++29 |
-| Reply-to | Peter Bindels <dascandy@gmail.com> |
-
-> What does "-Wall" in "g++ -Wall test.cpp -o test" do?  -- It's short for "warn all"; it turns on (almost) all the warnings that g++ can tell you about. Typically a good idea, especially if you're a beginner, because understanding and fixing those warnings can help you fix lots of different kinds of problems in your code.
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
 
 # Abstract
 
-We propose to have a standard facility in C++ to define a subset of the language, and to enforce a subset of the language in a given environment.
+As part of [Profiles](https://wg21.link/P4300) we should have the ability to express a particular feature to be removed from the language or library in a given environment, under a particular profile.
 
 # Prior art
 
 [P1881, Epochs](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p1881r1.html)
-- An epoch could reduce the number of possibilities and the complexity of the language by forbidding a subset of the existing approaches
-- The author of this paper has delivered C++ training to hundreds of people of different skill levels, and strongly believes that the complexity of topics such as variable initialization could be eradicated by using a mechanism like epochs. After explaining how to enable the latest epoch to students, the training could focus on a safe and logical subset of the latest standard that does not provide needlessly varied and complicated choices. Furthermore, students attempting to use unsafe constructs that they learned from C or poor C++ training material would be stopped by the compiler before introducing undefined behavior into their code.
 
 [P3081, Profiles](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p3081r1.pdf)
-- Define standard enforced “profiles” that a conforming C++ implementation must enforce when enabled, notably bounds, type, and lifetime. This is in addition to any user-defined profiles.
-- Each profile consists of rules. Each rule must be deterministically decidable at compile time (even if it results in injecting a check enforced at run time) and must be sufficiently efficient to implement in-the-box in the C++ compiler without unacceptable impact on compile time.
-- Rules are portable and enforced in the C++ implementation, not in a separate tool such as a static analyzer.
 
 [P3390, SafeC++](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p3390r0.html)
-- A superset of C++ with a safe subset. Undefined behavior is prohibited from originating in the safe subset.
-- The safe and unsafe parts of the language are clearly delineated. Users must explicitly leave the safe context to write unsafe operations.
-- The safe subset must remain useful. If we get rid of a crucial unsafe technology, like unions and pointers, we should supply a safe alternative, like choice types and borrows. A safe toolchain is not useful if it’s so inexpressive that you can’t get your work done.
 
 [P2759, DG OPINION ON SAFETY FOR ISO C++](https://wg21.link/p2759)
-- Profiles package up several features to make it visible for a code region. Profiles do not limit code in such a way that it reduces the language expressivity like subsets do. We do recognize some domains can deal with subsets and are thus not opposed to a profile-specific subset. However, it is our opinion that subsetting is not a suitable solution for a general purpose language.
-
-Reddit [Subset of C++](https://www.reddit.com/r/cpp/comments/ee3a48/subset_of_c/)
-- ... is it possible to have a subset of modern C++. ... With such a massive focus on modern C++ and teaching people about all the RAII techniques, smart pointers, containers, STL, algorithms and so much more, is it possible to just have a subset of C++, which enforces these best practices by default and let people study only the new/modern aspects of C++ leaving behind the legacy versions?
-- This idea comes up, if you ask me, surprisingly often.
-- C++ can take leaf out of Rust's notebook. The language allows you to mark code as unsafe code which lets you do some C style coding. Similarly this subset of C++ can allow developers to mark code as legacy or some other keyword and proceed with it. 
-- C/C++ is what actually backwards. Safe code should be the default to make writing safe programs effortless. Full freedom to do anything is what caused tons of these memory related vulnerabilities that plague any C/C++ software.
-
-StackOverflow [Official C++ language subsets](https://stackoverflow.com/questions/3073642/official-c-language-subsets)
-- I've been restricting myself to a very C-like subset of C++ features; namely, no classes/inheritance except complex and STL, templates only used for find/replace kinds of substitutions, and a few other things I can't put in words off the top of my head. I am wondering if there are any official or well-documented subsets of the C++ language that I could look at for reference (as well as rationale) when I go about picking and choosing which features to use.
-- Google publishes its internal C++ style guide, which is often referred to as such a subset: [Google style guide](https://google.github.io/styleguide/cppguide.html)
-- The SEI CERT C++ Coding Standard gives a list of rules for writing safe, reliable, and secure systems in C++14. This is not a subset of C++ per se, but as a coding standard like the other answers is a subset in effect by avoiding unsafe, undefined, or easily-misused features (including some common to C).
-- How close is existing C/C++ code to a safe subset? [https://www.mdpi.com/2624-800X/4/1/1]
-- Using a safe subset of C++ is a promising direction for increasing the safety of the programming language while maintaining its performance and productivity. In this paper, we examine how close existing C/C++ code is to conforming to a safe subset of C++. We examine the rules presented in existing safe C/C++ standards and safe C/C++ subsets.
-- We find that raw pointers, unsafe casts, and unsafe library functions are used in both C/C++ code at large and in modern C++ applications. In general, C/C++ code at large does not differ much from modern C++ code, and continued work will be required to transition from existing C/C++ code to a safe subset of C++.
 
 # Revision history
 
@@ -52,11 +26,13 @@ R1:
 
 - Remove ability to subset keywords. The keywords themselves are not the problem but the language construct they're used in, which requires more fine grained targeting. Example is `delete`, which has three different meanings, only one of which you'd try to remove.
 - Add concrete syntax to remove features
+- Added specific rules to remove, as a base set for wording usage
+- Removed many bits of rationale that are part of profiles, not just subsetting
 
 # Existing subsetting of C++
 
 - In hard-embedded setups, dynamic allocations are not allowed
-- IAR long shipped a mode called "Embedded C++" that omitted half of C++
+- IAR long shipped a mode called "Embedded C++" that omitted half of C++ 
 - GCC / Clang ship a "-fno-rtti -fno-exceptions" mode, that disable RTTI and exceptions
 - Many people want to use the "without-C" subset of C++ 
 - Library authors want to use the "C++17-compatible" subset, typically enabled with `-std=c++17`
@@ -68,43 +44,15 @@ R1:
 - the Clang/GCC `-Wall -Wextra -Wpedantic -Werror` subset of C++
 - In "Modern C++", we want to avoid raw "new" and "delete" statements in user code
 
-# Design principles
-
-- Code either compiles and works identically to what it does without the subset, or it does not compile. There are no other possible outcomes.
-- Subsets always combine orthogonally. There are no interactions between subsets, no changed behavior.
-- The compiler and linker do not get any special knowledge or permissions from the existence of a subset in a part of the program.
-- Subset specification is done by many different unrelated standard bodies and code owners.
-- Suppressing a given subsetting rule must be portable without requiring arbitrarily-large suppression lists.
-
-# Why is subsetting a thing we can and want to do?
-
-- It does not change the meaning of any code
-
-The only thing it allows is removing a construct, function, type or keyword from use. The only change a user can see to their program is that it is now ill-formed, with a specific indication where the given subset is violated.
-
-- The majority of code is not trying to do most of the things the language can do
-
-Most people have used an axe and a gun at some point in their life, but don't use axes or guns often. Similarly, most C++ code ends up relying on pointer arithmetic, but does not try do any pointer arithmetic by itself. Rules in subsets can be suppressed, allowing for a nearly-always rule to still be enabled.
-
-- Subsets combine orthogonally
-
-Subsets define specific actions that are disallowed. The sum of two subsets is the sum of their disallowed actions. If any subset disallows suppressing a given rule, the sum subset disallows suppressing that rule.
-
-- It is common for people to subset the language, and dozens of subsets are in common use
-
-Building with warnings-as-errors for a warning set, subsetting out the warning-causing constructs. Building in `-std=c++17` mode, subsetting out all C++20+ constructs. Building with `-fno-exceptions -fno-rtti`, disabling exceptions and RTTI.
-
-- It is one part of the mosaic of changes needed to create a safe future C++ language
-
 # How to subset
-
-Define a subset by doing one or more of the following
 
 - Disallow use of a specific type
 
 ```cpp
 class [[profiles::remove(unicode, "type is unfixably broken, use re2 instead")]] regex { ... };
 ```
+
+The type still does exist, even when the profile is active. Using the type in code to declare a variable, to use as a base class, or as part of an elaborated type specifier are flagged as ill-formed.
 
 - Disallow specific function usage (ie, mark function as effectively =delete despite being defined properly)
 
@@ -113,15 +61,21 @@ class [[profiles::remove(unicode, "type is unfixably broken, use re2 instead")]]
 char *strstr(const char *haystack, const char *needle);
 ```
 
+The function still exists and participates in overload selection. If the function is selected as target, even in an unevaluated context, the code is ill-formed.
+
 - Disallow enumerated set of specific language actions (array decay, variadic function use, pointer arithmetic, ...)
 
 ```cpp
 [[profiles::remove_rule(unsafe, pointer_arithmetic, "No pointer arithmetic is allowed")]];
 ```
 
-If multiple removals are applied to a single defined entity then all of them need to be disabled for the entity to be usable. It is usually a better idea to define one removal, and to have multiple profiles indirect to the name under which it is removed. How such profiles interact and join is defined in the main profiles papers.
+When a rule is removed, any use of it is considered ill-formed as soon as it is parsed in an area with the relevant profile active.
+
+If multiple removals are applied to a single defined entity then all of them need to be disabled for the entity to be usable. It is a better idea to define one removal, and to have multiple profiles indirect to the name under which it is removed. How such profiles interact and join is defined in the main profiles papers.
 
 # Rules that can be removed under this proposal
+
+Other profiles can and should define more rules to be removed as they come up. We propose to allow referring to the name of a rule that is profile-removed as the name of a profile that removes exactly that one rule, for purposes of composition.
 
 ## pointer_arithmetic: Addition expressions containing a pointer and an integral value are not allowed any more.
 
