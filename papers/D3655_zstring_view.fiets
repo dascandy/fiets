@@ -608,18 +608,21 @@ template<class traits>
   struct formatter<basic_cstring_view<char, traits>, wchar_t>;
 ```
 
-## Concept ntcts [concept.ntcts]
+## Concept c-string-holder [concept.ntcts]
 
 ```cpp
-  template<typename T>
-  concept ntcts = requires(const T & t) { { t.c_str() } -> std::same_as<const T::value_type*> };
+template<typename T>
+  concept c-string-holder =
+    ranges::contiguous_range<T> &&
+    ranges::sized_range &&
+    requires(const T & t) {
+      typename T::value_type;
+      { t.c_str() } -> std::same_as<const typename T::value_type*>;
+      requires is_same_v<ranges::range_value_t<T>, typename T::value_type>;
+    };
 ```
 
-T models `ntcts` ([defns.ntcts]) only if
-
-- T::value_type exists
-- `c_str()` returns a pointer to `const T::value_type`
-- `c_str()[size()] == '\0'`
+Given a `t` of type `const T&`, `T` models c-string-holder only if `t.c_str()` points to an NTCTS ([defns.ntcts]).
 
 ## String View Classes [string.view]
 
