@@ -75,6 +75,8 @@ Initial draft
 - Add a design decision on what to do with embedded NUL bytes
 - Minor technical and typo fixes
 - Renamed cstring_like to ntcts, as the standard already uses that name for exactly what it is
+- Extended wording for the above
+- Added chapter on what it means to be called cstring_view
 
 # Previous Papers
 
@@ -383,6 +385,54 @@ There are a handful of interfaces in the standard library which take `const stri
 There are further interfaces which take `const char*` and could have overloads taking a `cstring_view` or `string_view`.
 
 We do not propose any such changes in this paper but would like to investigate this in a follow-up paper.
+
+## Comparison to existing cstring_view implementations
+
+As this is not a novel type, many existing implementations are to be found on Github. These can be categorized roughly as follows:
+
+| Repository name | Type | Notes | Replaceable with P3655 |
+| helderTZ/cstring_view.h | C impl | C implementation of cstring_view | N/A |
+| REDl3east/cstring_view | C impl | C implementation of string_view. Yes, confusing name. | N/A |
+| HUD-Software/core | Only private char* | Internally conflicted in what it wants to be; only compiles for 8-bit types but has is_utf16 and is_utf32 functions that can never work | No |
+| fmtlib/fmt | Public char* wrapper | Wrapper around const char* only, nonexistent interface | No |
+| firebuild/firebuild | Public char* and size_t, no functions | Notes that it could be replaced with std::cstring_view | Maybe |
+| mag7ster/serenedb | Public string_view base | Known broken | Yes* |
+| refi64/zypak | Public string_view base | Known broken | Yes* |
+| deepin-community/bpftrace | Public string_view base | Known broken | Yes |
+| Ishu-Kansal/searchengine | Two private char*s, partial interface | Compatible with P3655 | Yes |
+| breyerml/cstring_view | Full, private string_view | C++ implementation according to P1402, same approach | Yes |
+| bemanproject/cstring_view | Full, private string_view | C++ implementation for P3655, this paper | Yes |
+| facebook/folly | Full, private string_view | C++ implementation almost identical to this paper | Yes |
+| ArnavT005/cstring-lite | Private string_view | Limited interface | Yes* |
+| tuccio/oblo | Private string_view base | Clean simple implementation, very similar | Yes |
+| DarkSharpness/network | Private string_view | Non-template, only for char. Similar in concept | Yes |
+| patricia-gallardo/cpp-doom | Private char* and size_t | Very simple, likely implemented in YAGNI style | Yes |
+| bmanga/freetype-gl-cpp | Private char* and size_t | Non-template implementation, only for char. Adds array constructor. | Yes* |
+| jdmclark/jkgfxmod | Private char* and size_t | Limited interface, adds array constructor | Yes |
+| jeremy-rifkin/cpptrace | Private char* and size_t | Non-template implementation, only for char. Limited interface | Yes |
+
+Of the implementations we can find publicly on Github called cstring_view, we find that about two-thirds are doing exactly what we propose. Three have a known implementation defect by inheriting publicly, and some others implement only for char or 8-bit types, or leave out many functions on the string_view interface (not intentionally - likely as a way to limit implementation effort more than anything else).
+
+Two main approaches are found that differ from this proposal. One is C libraries implementing either `string_view` or `cstring_view`, both under the name `cstring_view`. This paper does not address C, so these are not relevant.
+
+The other is libraries wrapping only a `const char*`, with the intent of not calculating `size()` ahead of time, and only creating a tagged `const char*` that's known to be intended as a null-terminated string. This paper does not propose a type that does this. Only two public libraries are implementing this approach.
+
+### Note on `*` adorned Yes
+
+The type has some functionality or functions beyond what P3655 offers, but can be replaced; either by rewriting the code that uses them, or changing the cstring_view implementation to inherit publicly from std::string_view allowing the existing uses to keep working. In many cases these are helper functions, the array constructor that we address elsewhere in the paper, functions to check utf8 validity, or similar functions to add functionality. In many cases these functions are separate from what `string_view` and `string` provide, and would in context of WG21 be considered novel additions, and likely better off as free functions or in separate proposals.
+
+### Known broken public inheritance
+
+These would allow the following code sequence (as one example):
+
+```cpp
+cstring_view csv = "abcdef";
+string_view& sv = csv; // allowed because public inheritance
+sv.remove_suffix(4); // allowed, because string_view has this as available function
+// at this point csv refers to the string "ab" that does not null terminate
+```
+
+More of these exist; this is just one example on one unfixable breakage with public inheritance.
 
 ## Reference Implementation
 
