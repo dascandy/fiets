@@ -1,0 +1,49 @@
+Skeleton Document for Profiles
+
+| Document number | D4316R0 |
+| Date | 2026-07-14 |
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
+| Targeted subgroups | SG23 |
+
+# Meta-introduction
+
+This paper has the skeleton structure for the merged Profiles document that SG23 intends to create. It contains mostly empty sections, devoid of any content, such that this other content can be added by other papers in discussion.
+
+# Introduction
+
+Profiles are the incremental approach to making code provide more safety guarantees, beyond what can be accomplished by modifying the base language.
+
+## Revision history
+
+# General chapters
+
+These chapters contain information that's common between all profiles, such as the way they interact, how rules are defined, what syntax is used for removing a type under a profile, how to activate them etc.
+
+## Glossary
+
+The glossary contains all words of power as used in this document. The goal is to make sure we all mean the same thing when we use one of them.
+
+## Profile rules
+
+### What profiles can do
+
+### Active vs inactive profiles
+
+### Composing profiles
+
+### Activating and suppressing profiles
+
+### Profile-removing language rules, types, and functions
+
+### Supersetting
+
+### Runtime checks
+
+## Wording
+
+# Specific profiles
+
+## Profile 1: TBD
+
+### Wording
+

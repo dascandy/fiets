@@ -64,7 +64,6 @@ At the last meeting in Prague a paper was brought up that addressed the need to 
 > We should consider a big ABI break for C++23
 
 |SF |F |N |A |SA|
-|-|-|-|-|-|
 |17 |44 |15 |31 |20 |
 
 which got no consensus. No other concrete date was proposed, and the idea of doing a big break in *some* version of C++ only barely got consensus.
@@ -72,7 +71,6 @@ which got no consensus. No other concrete date was proposed, and the idea of doi
 > We should consider a big ABI break for C++SOMETHING
 
 |SF |F |N |A |SA|
-|-|-|-|-|-|
 |39 |41 |14 |23 |14 |
 
 but which still leaves a major opening for rejecting it for each specific version proposed. In addition, the paper mentions:

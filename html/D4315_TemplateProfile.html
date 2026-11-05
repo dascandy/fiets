@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="generator" content="dascandy/fiets">
+<title>
+Template for proposing a profile</title>
+  <style type="text/css">
+body {
+  margin: 5em;
+  font-family: sans-serif;
+  hyphens: auto;
+  line-height: 1.35;
+}
+ul {
+  padding-left: 2em;
+}
+h1, h2, h3, h4 {
+  position: relative;
+  line-height: 1;
+}
+h1.title {
+}
+h2.subtitle {
+}
+h1.toc a, h2.toc a, h3.toc a, h4.toc a {
+  text-decoration: none;
+  color: #000000;
+}
+h1.toc a:hover, h2.toc a:hover, h3.toc a:hover, h4.toc a:hover {
+  text-decoration: underline;
+}
+a.self-link {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * (3.5rem - 26px));
+  width: calc(3.5rem - 26px);
+  height: 2em;
+  text-align: center;
+  border: none;
+  transition: opacity .2s;
+  opacity: .5;
+  font-family: sans-serif;
+  font-weight: normal;
+  font-size: 83%;
+}
+a.self-link:hover { opacity: 1; }
+a.self-link::before { content: "§"; }
+span.identifier {
+  font-style: italic;
+}
+span.special {
+  color: #bf003f;
+}
+span.keyword {
+  color: #0030cf;
+}
+span.comment {
+  color: #00c000;
+}
+span.new {
+  text-decoration: underline;
+  background-color: #00ff40;
+}
+div.code, span.code {
+  font-family: Courier New, monospace;
+  background-color: #e8e8e8;
+  white-space: pre;
+}
+span.delete {
+  text-decoration: line-through;
+  background-color: #bf0303;
+}
+p.indent {
+  margin-left: 50px;
+}
+p.quote {
+  margin-left: 50px;
+  border: 2px solid black;
+  background-color: #f0f0e0;
+}
+table {
+  border: 1px solid black;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0.8em;
+  text-align: left;
+  hyphens: none; 
+}
+td, th {
+  padding-left: 1em;
+  padding-right: 1em;
+  vertical-align: top;
+}
+th {
+  border-bottom: 2px solid black;
+  background-color: #f0f0f0;
+}
+</style>
+</head>
+<body>
+<h1 class="title" style="text-align:center">Template for proposing a profile</h1><table><tbody><tr><td> Document number </td><td> D4315R0 </td></tr><tr><td> Date </td><td> 2026-07-14 </td></tr><tr><td> Reply-to </td><td> Peter Bindels &lt;cpp@dascandy.nl&gt; </td></tr><tr><td> Targeted subgroups </td><td> SG23 </td></tr></tbody></table><h1 data-number="1" id="Meta-introduction"><span class="header-section-number">1</span> Meta-introduction<a href="#Meta-introduction" class="self-link"></a></h1><p>This paper contains as its body the template for a paper to propose a profile. It is intended as a guideline what parts to propose, important elements to mention, a template format to allow quicker reading and referencing by virtue of similarity, and as a checklist to know before submission that no important points were forgotten.</p><h1 data-number="2" id="Introduction"><span class="header-section-number">2</span> Introduction<a href="#Introduction" class="self-link"></a></h1><p>Each profile is introduced with a particular goal in mind. Explain what the profile does, what goals it sets out to achieve, what kind of effect it is expected to have on existing and new code. Explain what kind of users are being considered in proposing the profile and how they are helped by this profile.</p><h1 data-number="3" id="The-Profile"><span class="header-section-number">3</span> The Profile<a href="#The-Profile" class="self-link"></a></h1><h2 data-number="3.1" id="Which-profile-name-the-changes-are-under"><span class="header-section-number">3.1</span> Which profile name the changes are under<a href="#Which-profile-name-the-changes-are-under" class="self-link"></a></h2><p>Each profile needs a name. As simple as this section looks, the name must be short, clear, unambiguous, distinct and teachable. It is a good idea to include all names considered, and to highlight what the best candidates are.</p><h2 data-number="3.2" id="Which-other-profiles-are-being-included-in-this-one--and-which-other-profiles-this-one-is-a-new-part-of"><span class="header-section-number">3.2</span> Which other profiles are being included in this one, and which other profiles this one is a new part of<a href="#Which-other-profiles-are-being-included-in-this-one--and-which-other-profiles-this-one-is-a-new-part-of" class="self-link"></a></h2><p>Usually, a profile either adds restrictions, or consolidates other profiles into larger sets of profiles for easier use. In some cases, profiles require other profiles to be active for their guarantees to hold. In the case of a profile consolidating others this section is most of the content; in case of a profile needing other profiles to be active it should contain the additional profiles to be activated here so that the full guarantee holds, despite the paper only providing its own conditional guarantee.</p><h2 data-number="3.3" id="How-to-teach-the-profile-to-users"><span class="header-section-number">3.3</span> How to teach the profile to users<a href="#How-to-teach-the-profile-to-users" class="self-link"></a></h2><p>Each profile adds a mental load to a user to understand. Ideally, a new profile has a very short explanation that gets 90% of its meaning across to most users. Think about different users - those who have little experience with the language, those with decades of C++ experience, those with large experience in other languages but no or only outdated experience in C++. Provide examples of the benefits that the profile brings written towards each group of users.</p><h2 data-number="3.4" id="Intended-and-expected-scope"><span class="header-section-number">3.4</span> Intended and expected scope<a href="#Intended-and-expected-scope" class="self-link"></a></h2><p>Some profiles propose to disallow particular constructs that are either unavoidable in a small amount of code, or necessary to implement the tools that allow other code to not risk particular kinds of dangerous behavior. Enabling such a profile across all code would defeat its own purpose - the suggested replacement functionality would be made impossible by it. Indicate for the profile where it should be enabled, and in which areas or environments suppression is expected.</p><h1 data-number="4" id="Specific-changes"><span class="header-section-number">4</span> Specific changes<a href="#Specific-changes" class="self-link"></a></h1><h2 data-number="4.1" id="What-feature-s--are-being-removed-or-disabled"><span class="header-section-number">4.1</span> What feature(s) are being removed or disabled<a href="#What-feature-s--are-being-removed-or-disabled" class="self-link"></a></h2><p>For suppressing language rules, the paper needs to describe clearly which exact rules need to be removed. The wording for the specific rules needs to be included.</p><p>For removing types, the paper needs to describe what problem the types pose, how to implement the functionality that was provided by them, and how to avoid recreating the same problems in replacement code.</p><p>For removing functions, the paper needs to describe what risk or problems the functions have, and which replacements should be used. Ideally the paper has concrete examples of the replacement use.</p><p>For removing allowed evaluation modes for a runtime check, the paper needs to show performance impact delta when activating the profile in typical scenarios, and if known in worst-case scenarios.</p><p>For removing undefined behavior, the paper needs a strong rationale explaining why the new solution is better, and measurements that show the performance impact of it is acceptable. This is different from the other items listed above as a change to remove undefined behavior cannot change on profile activation.</p><h2 data-number="4.2" id="Which-replacements-are-provided--potentially-adding-minor-ones-in-the-same-paper--but-preferably-indirecting-to-another-paper-that-has-already-done-that-"><span class="header-section-number">4.2</span> Which replacements are provided (potentially adding minor ones in the same paper, but preferably indirecting to another paper that has already done that)<a href="#Which-replacements-are-provided--potentially-adding-minor-ones-in-the-same-paper--but-preferably-indirecting-to-another-paper-that-has-already-done-that-" class="self-link"></a></h2><p>Replacement functionality can be proposed in separate papers, or in the paper providing the profile that requires it. In all cases, replacement functionality is available whether the profile is active or not.</p><h2 data-number="4.3" id="Which-runtime-checks-are-tied-to-the-profile--and-expected-runtime-overhead-in-representative-scenarios-if-any"><span class="header-section-number">4.3</span> Which runtime checks are tied to the profile, and expected runtime overhead in representative scenarios if any<a href="#Which-runtime-checks-are-tied-to-the-profile--and-expected-runtime-overhead-in-representative-scenarios-if-any" class="self-link"></a></h2><p>A profile proposal can add runtime checks that tie in to the guarantees the profile is making. These runtime checks are always present, even if the profile is inactive or suppressed. When active, the profile can restrict the set of allowed evaluation semantics on the runtime checks to exclude some, in effect requiring the checks to use one of the remaining semantics. As this is the only part of a profile that can add overhead on activation, it is preferred to have a chapter that enumerates specifically which checks are being switched, so that users know what to expect.</p><h1 data-number="5" id="Profile-Guarantees"><span class="header-section-number">5</span> Profile Guarantees<a href="#Profile-Guarantees" class="self-link"></a></h1><h2 data-number="5.1" id="What-guarantees-the-profile-enables-in-code-it-is-active-in"><span class="header-section-number">5.1</span> What guarantees the profile enables in code it is active in<a href="#What-guarantees-the-profile-enables-in-code-it-is-active-in" class="self-link"></a></h2><p>Many profiles create a guarantee of some kind of safety property being attained in the code where it is active. A guarantee can be unconditional if the profile by its rules fully guarantees a particular concern is avoided. In some cases, such as a type-safety profile, the type safety can only be guaranteed if all objects are still live. Instead of adding complication to the type safety profile to also handle lifetime safety, it should offer a conditional guarantee of type safety, that is usable only if the same code also has a lifetime guarantee by some profile.</p><h2 data-number="5.2" id="How-the-profile-enables-compilers-and-linkers-to-take-local-guarantees-or-information-from-the-profile-to-combine-into-global-guarantees"><span class="header-section-number">5.2</span> How the profile enables compilers and linkers to take local guarantees or information from the profile to combine into global guarantees<a href="#How-the-profile-enables-compilers-and-linkers-to-take-local-guarantees-or-information-from-the-profile-to-combine-into-global-guarantees" class="self-link"></a></h2><p>Consider for the guarantees that your profile hopes to enable, whether they are trivially generalized from local guarantees to a global guarantee, or whether particular actions and information propagation is needed to do so. As example, consider a profile that tries to show that functions eventually reach completion. For functions that iterate or recurse into themselves, these proofs can often be created locally with advanced flow analysis. For functions that call into other functions, they can only be shown to finish if these other functions themselves finish, and do not recurse in some way back to this function. If they do recurse back to this function, more information is required for whole program analysis to be able to create such a proof. As an opposite example, consider initialization, where an attribute is created to carry such information across function boundaries, and a set of independent local proofs generalize to a global proof without any extra work.</p><p>In some cases information transfer across TU boundary enables local analysis to perform a more thorough analysis that can make better, more or stronger guarantees. In these cases the papers should indicate clearly how the local analysis is to be done with the knowledge that information transfer across these boundaries is limited to the encoded information. The paper also needs to contain wording to add the specific attributes, annotations or other denotational measures to carry the information between translation units.</p><h1 data-number="6" id="Which-runtime-checks-are-tied-to-the-profile--and-expected-compile-time-and-runtime-overhead-in-representative-scenarios-if-any"><span class="header-section-number">6</span> Which runtime checks are tied to the profile, and expected compile time and runtime overhead in representative scenarios if any<a href="#Which-runtime-checks-are-tied-to-the-profile--and-expected-compile-time-and-runtime-overhead-in-representative-scenarios-if-any" class="self-link"></a></h1><p>Guarantees are usually what we want to have - the certainty that a particular kind of behavior does not occur. As indicated though, some profiles remove fundamental ability to express, where we want to ensure that all of the program uses a specific implementation of the undesirable behavior, so that we can reason about the use of the abstraction knowing there is no other instance of that behavior, while still allowing the undesirable behavior in the implementation of that abstraction. </p><p>For other guarantees, having code that is able to break the guarantee breaks either local proofs or integrating proofs. For those, it is necessary to explain what guarantees exist if the profile is suppressed in parts, and what we should be looking for.</p><h1 data-number="7" id="Wording"><span class="header-section-number">7</span> Wording<a href="#Wording" class="self-link"></a></h1><p>Wording for the features being added to be added to the main profiles paper, split into changes to the P4400 paper, and changes to the current C++ IS</p></body></html>

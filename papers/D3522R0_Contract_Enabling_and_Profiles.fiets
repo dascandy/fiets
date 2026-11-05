@@ -115,7 +115,6 @@ The Assume semantic is one that we will be proposing no support for in the C++ s
 Multiple evaluation modes combine as follows:
 
 | X            | Ignore       | Observe | QuickEnforce | Enforce |
-|--------------|--------------|---------|--------------|---------|
 | Ignore       | Ignore       | Observe | QuickEnforce | Enforce |
 | Observe      | Observe      | Observe | Enforce      | Enforce |
 | QuickEnforce | QuickEnforce | Enforce | QuickEnforce | Enforce |
@@ -124,7 +123,6 @@ Multiple evaluation modes combine as follows:
 Profile enablement and evaluation modes combine as follows:
 
 | X            | Ignore       | Observe | QuickEnforce | Enforce |
-|--------------|--------------|---------|--------------|---------|
 | Disabled     | Ignore       | Observe | QuickEnforce | Enforce |
 | Enabled      | QuickEnforce | Enforce | QuickEnforce | Enforce |
 
@@ -258,7 +256,6 @@ The second example has a contract assertion in the `axioms` group. For the devel
 With this example, we would instruct the compiler to allow all evaluation modes on contracts by default, except that axioms will be compiled without the option to terminate, safety must terminate (and the compiler is allowed to optimize with this information), and IP sensitive contracts may not call the contract violation handler and potentially emit IP sensitive information. The default evaluation mode is set to enforce (which combines with the modes to make regular contracts enforce, axioms observe, ip sensitive contracts `quick_enforce`, and safety contracts enforce), which is then overridden for the safety contracts to also `quick_enforce`, and for axioms to by default ignore. Or in table form:
 
 | Group name     | Allowed modes              | Default mode    | Compiler effect                                       |
-|---|---|---|---|
 | `default`      | `all`                      | `enforce`       | full code emitted                                     |
 | `axiom`        | `ignore`, `observe`        | `ignore`        | no terminate path emitted                             |
 | `ip_sensitive` | `ignore`, `quick_enforce`  | `quick_enforce` | no `contract_violation` objects emitted, IP protected |

@@ -42,7 +42,7 @@ Text parseText(std::string_view line, Document& doc) {
         offset += 2;
         break;
       case '+': 
-        if (line[offset+1] == '+' && line[offset+2] == '+') {
+        if (offset + 2 < line.size() && line[offset+1] == '+' && line[offset+2] == '+') {
           if (!accum.empty()) text.seq.push_back(accum);
           accum = "";
           size_t end = line.find("+++", offset + 3);
@@ -179,11 +179,18 @@ Document parse(std::string_view file) {
         if (currentChapter->entries.empty() ||
           !std::holds_alternative<Table>(currentChapter->entries.back()))
           currentChapter->entries.push_back(Table{});
+        Table& table = std::get<Table>(currentChapter->entries.back());
 
-        std::get<Table>(currentChapter->entries.back()).entries.push_back({});
-        auto& lineEntries = std::get<Table>(currentChapter->entries.back()).entries.back();
-        for (auto entry : split(line.substr(1, line.size() - 2), "|")) {
-          lineEntries.push_back(parseText(entry, doc));
+        if (line.find_first_not_of("-| ") == line.npos) {
+          if (table.entries.size() != 1) {
+            printf("Found empty line or header break at non-header spot, ignoring");
+          }
+        } else {
+          table.entries.push_back({});
+          auto& lineEntries = table.entries.back();
+          for (auto entry : split(line.substr(1, line.size() - 2), "|")) {
+            lineEntries.push_back(parseText(entry, doc));
+          }
         }
       } else if (line.size() >= 10 && line.find_first_not_of("-") == std::string::npos) {
 //        currentChapter->entries.push_back(PageBreak{});
