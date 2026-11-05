@@ -1,0 +1,142 @@
+Subsetting as a full feature
+
+| Document # | P4455R0 |
+| Date | 2026-10-31 |
+| Targeted subgroups | SG23 |
+| Ship vehicle | ? |
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
+
+# Abstract
+
+A full approach to allowing user subsetting in practice, extended from P3716R1 to define activation, suppression and grouping.
+
+# Introduction
+
+During the development of a language many things are added over time that eventually prove not to be a good idea. Users will expect their existing code to keep working as-is, which makes it extremely difficult to ever remove anything, even with widespread agreement that a given feature is broken and actively harmful for nearly all of its users. Even features with very little apparent use, such as digraphs, trigraphs and repeated comparisons (`a < b < c`) in C++ still face heavy opposition to removal. At the same time, we know that we, and nearly all users with us, want to actively avoid having any of these features in our software, even if by accident. A complicating factor is the existence of non-open source code. This code is not available to all, which makes it very likely that any research done to find and show lack-of-use for a given feature will miss significant usage in private source code. This causes the language to remove features very slowly, at a near-glacial pace, while new features are being added at a reasonably high pace. This imbalance leads to the language to appear full of features that are meant not to be used, but where the knowledge that they are broken in many situations, dangerous to use, and likely to cause bugs are left as a word-of-mouth often tied to experience.
+
+The root cause being that it is extremely hard to show never-suitability allowing for deprecation, and non-usage that would allow removal. We have seen this with `strstream` being deprecated in C++98 and only finally *almost* removed in C++26. It is very hard for users new to C++ or not intimately familiar with the current status of such a feature to know if it is `sstream` or `strstream` that is the current variant to use, and which of the two is supposed to be removed at some point. Even in 2024 I have seen users start using `strstream` by lack of knowledge.
+
+Users have a way already to change some of what C++ as specified by ISO14882 by using compiler-specific options. These often disallow what normal C++ has to accept, things that are in nearly every case a detectable bug. These are highly compiler specific, and tend to be focused on language rule detections, like forgetting to return a value from a function. The language itself hasn't adopted these in part due to the aforementioned "it could be that there is some code that does this that does not have any bugs, and therefore making it ill-formed would actively break working code". 
+
+The thing we need is a portable, standard way to remove something from the language that the users can enable in their own code base, that allows them to know they don't use any of the features we would consider known-bad or very likely broken in most situations. As these features are often the only way to do something, they are used in implementation of tools that provide restricted safer versions of the same actions which users are expected to use. That in part means that in code bases that use those safer versions of the feature want to remove the unsafe feature from the language everywhere except in the parts where they implement their safer versions. So we also need a way to, while something must be unavailable to most software, to retain a way to use it in specific places.
+
+Having such a way to remove parts of the language we enable ourselves to develop without risk of accidentally making mistakes that are known and understood, in a way that we can distribute to new users, and that external organizations can use to help people create good combinations of removals that result in efficient risk-reduced development.
+
+# Approach
+
+Subsets as specified in P3716 are defined as part of Profiles. As the combined Profiles paper is not making much progress, I figured it would be interesting to see how much of P3716 could be made usable in an implementation by filling in the gaps around it.
+
+P3716 explicitly chooses not to expand on how to group multiple subsets. It also has no way to activate or suppress subsets lacking a control statement similar to P3589's specification. In implementing I discovered a few bits that P3716 attempted to specify that didn't make a ton of sense, so I did change the subsetting itself slightly as well. Finally, it makes sense to have some strawman subsets predefined to be able to show how things combine and work together.
+
+This paper does not implement P4314 even though it represents a substantial part of what it proposes, and works along the exact same lines.
+
+# Important decisions
+
+Subset names refer either (exclusive-or) to a rule, to a group definition, or to a combination of removals. Defining a group with an existing name is ill-formed; attempting to remove under the name already known as a rule or group is ill-formed.
+
+Grouping is done with the `[[subset::define(name, members...)]]` syntax. This creates a new subset called `name` that is comprised of each of the following already-existing subsets. This can be done recursively to make larger groupings. Each subset grouping is expanded at point of definition to the enumeration of leaf subsets - ie, nongroup ones - that they include. Direct repetition in the list is flagged as ill-formed, but indirect repetition is accepted.
+
+Activation and suppression are done with `[[subset::activate(x)]]` and `[[subset::suppress(x)]]` attribute statements in a scope. They are tracked in the scope they are defined, and change the set of active subsets. Each statement takes effect from after the point it is at until end of scope. Activating a group switches the set of active subsets to all of the included subsets too, and suppressing a group suppresses all the included subsets. 
+
+Each defined subsetting removal or rule below has a short name that directly identifies the rule or item being removed. 
+
+This allows us to activate things at a global scope by specifying them at the top of the translation unit or equivalently in command-line arguments, to suppress where we need to suppress a subsetting within a narrow scope, and for the set of active subsets to be a user-understandable concept.
+
+# Incidentals that might change
+
+The syntax itself is using attributes, to indicate that we're changing meta-state in the compiler. Attributes cannot have any effect on the function of a program that is not ill-formed. If the program ends up not being ill-formed, it will do the exact same thing with all subsets disabled everywhere. I believe that this is an appropriate use for them and that it provides clarity, but I have no strong preference for it. 
+
+Defining subsets is a top-level statement. It is marked required to do so in the current implementation as the definition will last as per global scope, unlike the other subset attributes, making it look weird if you were to use a remove, activate, suppress and define in a subscope, with three out of four working in that scope, and one extending beyond anyway. The syntax for defining is also a prototype symtax.
+
+Subset names are implemented as single unquoted-string names. This simplifies the implementation and related lookup, and with most subsets this should be sufficient. I have thought about making it a namespaced name but didn't want to complicate the prototype with that.
+
+# How to subset
+
+- Disallow use of a specific type
+
+```cpp
+class [[subset::remove(regex, "type is unfixably broken, use re2 instead")]] regex { ... };
+```
+
+The type still does exist, even when the subset is active. Using the type in code to declare a variable, to use as a base class, or as part of an elaborated type specifier are flagged as ill-formed while the subset is active.
+
+- Disallow specific function usage (ie, mark function as effectively =delete despite being defined properly)
+
+```cpp
+[[subset::remove(strstr, "use std::string")]]
+char *strstr(const char *haystack, const char *needle);
+```
+
+The function still exists and participates in overload selection. If, with the subset active, the function is selected as target, even in an unevaluated context, the code is ill-formed.
+
+- Disallow enumerated set of specific language actions (array decay, variadic function use, pointer arithmetic, ...)
+
+```cpp
+[[subset::activate(pointer_arithmetic)]];
+```
+
+When a rule is removed, any use of it is considered ill-formed as soon as it is parsed in an area with the relevant subset active. This reads "activate" as it can only activate a predefined rule; there is no mechanism for adding rules that can be activated beyond the C++ standard specification (ie, the rest of this paper / P3716).
+
+# How to activate and define subsets
+
+- Activate a subset
+
+```cpp
+[[subset::activate(unicode)]];
+```
+
+Activates the subset or subset group referred to by the name passed in. If it is a group, it is fully expanded, and each element is added to the set of active subsets
+
+- Suppress a subset
+
+```cpp
+[[subset::suppress(printf)]];
+```
+
+Suppresses the subset or subset group referred to by the name passed in. If it is a group, it is fully expanded, and each element is removed from the set of active subsets.
+
+- Defining a subset grouping
+
+```cpp
+[[subset::define(unicode, printf, snprintf, ...)]];
+```
+
+Defines a subset grouping called "unicode" that contains the subsets "printf", "snprintf" etc. If any of these is a group itself they are expanded at time of definition. If the subset named by the grouping is already set to active by the time the definition is found, it is expanded to the constituent parts at that time.
+
+# Misuse warnings and errors
+
+When a subset grouping is defined, it must refer to a new, unused name. It may not name itself in its argument list, and the argument list may not have any duplicates. Any indirect duplication is accepted and ignored - they are still present once. This allows users to move subset definitions around and to have overlapping subsets grouped in large default subset groups without fear of getting errors downstream when a subset definition changes.
+
+Subset suppression can refer to inactive subsets. This enables users to add suppressions to their code for subsets that are activated in some TUs that include it, but not others. Subset activation can also refer to already-active subsets. This allows users to add activations in their code knowing that it cannot break downstream code that may already activate it itself. If the compiler detects that a user is activating a subset twice in the same TU, or suppressing something already suppressed in the same TU, it can give a warning telling the user that there is a redundant statement.
+
+Subset activation and suppression can refer to unknown subsets. This is necessary, as it would otherwise not be possible to activate a subset that is not yet defined. Consider trying to command-line or head-of-TU activate a subset that is introduced in a later-included header - it would not be possible to make that take effect until after the include is processed. Subset suppression can refer to unknown subsets, as in some cases subsets need to be parsed that are late-instantiated (like templates) where the function definition would only need to be known at that later time, while the subset suppression would need to be parseable early. The subset activations can be checked at the end of the scope they are activated in, as they will necessarily need to have been defined by then; the subset suppressions cannot be, as they may refer to uninstantiated template code where the function whose removal it suppresses was never actually known.
+
+As subset activations can refer to groups, and those groups' constituent parts are only actually activated by the time the definition is found, this opens a window in which a constituent subset would theoretically be active, but practically isn't. It is a good idea to give a warning when a subset is defined after being activated.
+
+# Rules that can be removed under this proposal
+
+Instead of copy/pasting from P3716, given that this list has barely changed, I prefer to refer to [P3716R1](https://wg21.link/p3716r1) directly. 
+
+`variadic_functions` turned out not to give useful feedback. In the test example it found three functions - `ioctl`, `open` and `printf`. Of these three, the first two are benign / unavoidable, and the third would already be tagged under other subsets. It is implemented in the fork but does not provide useful feedback, and the functions where it does the same effect can be accomplished in a better approach.
+
+`no_integer_promotion` provides way too many warnings in current code bases to be useful. It would need some features added that make it reasonable to forbid this.
+
+# Implementation experience
+
+An [implementation on Github](https://github.com/dascandy/gcc/tree/subsets-restructured) was created with heavy Claude usage while guiding it along the implementation strategy, reviewing all code changes. In this implementation subset activation, suppression and definition are worked out in the first commits, with the predefined subsets mentioned in the chapter directly before this one being implemented next. Finally, a few strawman removals and groupings were defined with the intent of seeing if the implementation behaved appropriately according to this document, and whether warnings were both logical and consistent. This implementation is targeted at finding coherency problems in the design and allowing users to play around in it to see whether it would work for their use cases in its current state.
+
+# Examples
+
+Three ways to write hello world, in C++. First we use printf, a function known for being dangerous enough that pretty much every compiler has developed specific mitigation syntax to reduce its harms. Even with all those mitigations, C-style varargs cause conversions and sometimes lack of conversions that users do not expect, leading to still subtly broken code. Secondly we use std::cout, a less dangerous construct, but one that is not connected to a Unicode output, which can still create Mojibake. It also uses std::endl, a known accidental performance inhibitor that has been featured as a gotcha in many podcasts and quizzes. Finally, we use std::println, a construct designed to allow implementers to avoid outputting mojibake with platform-specific workarounds. We also use std::cout and endl through a different function that suppresses the removals, showing that we can still use them by suppressing. It also shows that suppression works at a scope level, and uses a custom grouping to suppress. 
+
+[Hello World and unicode example on Godbolt](https://godbolt.org/z/9KT7jWj3e)
+
+The example grouping wide_string contains multiple different rules indirectly, some that remove language features, and some that remove library functions, types and variables. This allows for a more coherent grouping of related features to be removed.
+
+[Wide_string example on Godbolt](https://godbolt.org/z/qWYdGv6jv)
+
+# Wording
+
+To be written
+
+
