@@ -1,0 +1,90 @@
+Faster contracts
+
+| Document # | P45xxR0 |
+| Date | 2026-11-24 |
+| Targeted subgroups | EWG, SG15 |
+| Ship vehicle | C++29 |
+| Reply-to | Peter Bindels <cpp@dascandy.nl> |
+
+# Abstract
+
+Contracts ([P2900]) and contracts on virtual functions ([P3097]) in typical implementations need to allow for mixed-mode compilation and compilation mismatches between different translation units. This paper explores what we need to allow for the maximal amount of information to be available to the optimizer, and how much information that is in both typical and unusual situations.
+
+# Revision history
+
+R0: First revision
+
+# Base situation
+
+In [P3267] the author already explored what we can do as implementation strategy for [P2900] contracts, where the compiler is not able to make many assumptions about what is enforced. Recently we got [P4451] added to that, which does provide more information available to the optimizer, but because of the mixed-mode compilation it cannot assume any of these contracts hold - the contracts might have been added, removed, or changed on either side, and regardless of whether the contract is always-enforced, this precludes doing anything cross-TU with that information. In addition, in implementing P3267 chapter 2.3 the author discovered that even in that approach, the resulting postconditions are never available to the optimizer, as while it can add an extra entrypoint for pre-checked conditions, it cannot add a secondary exit point.
+
+# Assumptions
+
+Looking for the maximal amount of information for the optimizer, and expecting the fastest possible results, we first need to know what information we can reasonably get. We have to assume that we are not in a mixed mode compilation and that all translation units are indeed rebuilt if their source code was modified.
+
+# Simple functions
+
+For simple functions we can now expect the caller to always check the precondition contracts, and the callee to always check the postcondition contracts. This means that the callee can always assume the precondition contracts were indeed true, and the caller can assume the postcondition contracts were indeed true. There is not much more to say at this point; this is the easy change.
+
+## Function pointers
+
+Function pointers destroy one of the assumptions we had in the previous chapter. We can model this in one of two ways: either we model a function-to-pointer conversion as emitting a thunk, or we model a function as having two entrypoints, one of which does a contract check and delegates to the other for everything else. These are equivalent, and for simplicity's sake we'll do the same thing [P3267] does - use the existing entrypoint as the one that does check, and use the .postcheck entrypoint as the one that is past the precondition check. There is no functional difference between the two strategies if our assumptions hold.
+
+# Virtual functions
+
+For virtual functions we end up in an interesting situation. The approach that C++29 currently has for virtual functions is [P3097], which prescribes that only the interface and implementation contracts matter for checking whether a virtual function is a valid call. We are going to try to do exactly that, insofar as possible.
+
+## Interface
+
+For the interface - ie, the caller side - this side is easy. We enforce all preconditions and assume all postconditions. As far as this side is concerned, nothing more needs to be done - as long as the other side keeps its end of the bargain.
+
+## Implementation
+
+The implementation, then, has the job of making sure that its own preconditions and postconditions hold, as well as to ensure that the postconditions of whichever interface ended up calling it are held, while only receiving very limited information on the preconditions that were checked.
+
+For the precondition, it receives the implication that *one* of its interfaces was called. This can be the implementation itself (as it is also a valid interface), or it can be any of the base classes that has a function this one implements, and its preconditions. We take the set of preconditions per interface, place these in a conjunction per interface, and provide the disjunction of these conjunctions as assumption to the implementation. It then needs to prove that its own precondition holds. In doing so, it also notes which of the preconditions sets held - as this provides information on which interface the call could have validly come through.
+
+For the postconditions, it first checks its own postcondition. Then, for each interface that this call could have validlly come through, it validates that the postconditions of *that* interface hold. Doing so provides the required guarantee to the callers that their postcondition was indeed checked, without needing (or being able to) know which interface the call came through.
+
+This is a difference from [P3097]. We'll go into what exactly the differences are below, as we discover more.
+
+This is a choice in tradeoffs. If we are willing to accept that functions must comply to a base interface postcondition when a given call meets its preconditions, this approach works fine and has the least impact. If we are not willing to entertain this difference, this approach will not work, but there is an alternative.
+
+## Implementation, redux
+
+An alternative option is to pass in a "static interface pointer" in each virtual function call that has a contract. The "static interface pointer" is the address of the function in the vtable of the class. This does change the ABI in a more significant way, but prevents the divergence in implementation requirements that the previous approach necessitates. In this design, the caller passes in the static interface pointer to the virtual function call, and the implementation uses this to decide on which variant of an implementation to use. Conceptually each potential static interface pointer creates a thunk that checks its preconditions and the implementations' preconditions, then jumps directly to the function (similar to the .postcheck above), and then returns after checking the implementations' postcondition where the thunk checks only the specific interface's postcondition.
+
+The ABI change can be minimized by using a caller-saved register, and I found that R10 (on x86-64) already serves a very similar purpose. The register is set to 0 on all virtual function calls as they might end up with an overrider that has a contract, which would assume it represents the SIP, to avoid spurious matches. This conforms much more closely to P3097, and by doing so also works more cleanly for devirtualization (it does not check contracts off the exact path). It does have the downside of making a fairly involved ABI change.
+
+## Member-function-pointers
+
+The previous changes have modified the vtable entries from "functions without checked preconditions" to "functions *with* checked preconditions". That has the unfortunate side-effect of recreating the exact problems we had before with function pointers, except now with member function pointers. The approach we took there of having a double entry point cannot work here without a significant ABI impact - doubling vtables, adding a shadow vtable or similar kinds of approaches. Instead, we take the other approach listed there - we emit a thunk that does the precondition check for us, and where we indirect our virtual function call. This changes the implementation of the member function pointer from a virtual member function pointer to a nonvirtual member function pointer pointing to a thunk that itself acts as a virtual member function pointer, but this is not a user visible change (other than software that uses major UB to investigate). In addition, Microsoft Visual C++ already uses this approach, and has done so for multiple decades without issue.
+
+Providing this thunk with a mangled name and weak or COMDAT linking prevents us from growing the program needlessly. In the prototype we call this entry point ".contract_virtual".
+
+# Results
+
+- All functions receive the implication that their own preconditions all hold.
+- All functions receive the implications that all postconditions for functions they call must hold.
+- All functions are tasked with guaranteeing the preconditions of functions they call
+- All functions are tasked with showing their own postconditions hold.
+
+- Function pointers and member function pointers must contain a thunk of sorts that checks the preconditions of the function whose address they have taken.
+
+This provides function implementations with the maximal amount of information to be had from contracts. Notably this does not require any adjustments to [P2900] contracts. 
+
+# Differences to P3097
+
+With regards to P3097, there are some differences. These are only in cornercases, where it is hard to reason about correctness:
+
+- In the first implementation strategy, virtual functions check all postconditions of interfaces whose preconditions are met. This differs from P3097 in that it will check a postcondition of an interface that the call did not actually use.
+- In the second implementation strategy, the ABI of virtual function calls with contracts is different from those without. The full recompilation assumption covers this entirely, but it is still a difference.
+- Member function pointers taken from an interface that has preconditions must now guarantee that they check that precondition. In P3097 so far, the assumption had been made that member function pointers themselves have no contracts, but also that they are then exempt from checking the interface precondition for the function whose address they took.
+
+With regards to required changes, only the member function pointer one is one that needs a normative change. In my view it brings the design closer to the intended one in case of member function pointers - we're not silently ignoring the contracts on the interface whose address you take, we're capturing those in the thunk and using them, similar to regular function pointers.
+
+# Wording
+
+To be written
+
+
